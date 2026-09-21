@@ -1,0 +1,60 @@
+{
+  "name": "dsh-offpeak",
+  "version": "0.1.0",
+  "description": "DSH plugin: holds DeepSeek model calls during peak pricing hours so they are sent at off-peak rates.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "off-peak",
+    "peak-hours",
+    "pricing",
+    "deepseek"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "src",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "test": "node tests/run.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-connection"
+      ]
+    }
+  },
+  "author": "TetraSsky",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TetraSsky/dsh-offpeak.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TetraSsky/dsh-offpeak/issues"
+  },
+  "homepage": "https://github.com/TetraSsky/dsh-offpeak#readme",
+  "engines": {
+    "node": ">=20"
+  }
+}
