@@ -19,5 +19,9 @@ export const Config = z.object({
   // Peak pricing only exists on DeepSeek's own route, so blocking anything else would cost time and save nothing.
   routeFilter: z.union([z.const('all'), z.const('deepseek-official')]).default('deepseek-official'),
   showBalance: z.boolean().default(false),
+  // The API reports the account's own currency. A forced code only changes the symbol,
+  // so it is paired with an optional rate when the figure really should be converted.
+  currency: z.union([z.const('auto'), z.const('CNY'), z.const('USD')]).default('auto'),
+  cnyPerUsd: z.number().min(0).default(0),
   showStatus: z.boolean().default(true),
 })

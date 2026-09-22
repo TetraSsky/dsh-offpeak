@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { currencySymbol, formatMoney } from '../src/money.js'
+import { conversionRate, currencySymbol, formatMoney } from '../src/money.js'
 
 test('the symbol follows the currency the API reported', () => {
   assert.equal(formatMoney(39.78, 'USD'), '$39.78')
@@ -43,11 +43,35 @@ test('amounts always carry two decimals', () => {
   assert.equal(formatMoney(1234.5, 'CNY'), '¥1234.50')
 })
 
-test('the symbol is not a function of the interface language', () => {
-  // formatMoney takes no locale, so a Chinese UI showing a USD balance still shows $.
-  // This is the regression guard for a hardcoded symbol in the client.
+test('the symbol is chosen by the setting or the API, never by the interface language', () => {
+  // formatMoney takes no locale: a Chinese UI showing a USD balance still shows $, and a
+  // forced currency shows its own symbol in either language.
   assert.equal(formatMoney.length, 2, 'formatMoney must take exactly (value, currency)')
   assert.equal(formatMoney(39.78, 'USD'), formatMoney(39.78, 'USD'))
+})
+
+test('without a rate the figure is never converted, whatever is displayed', () => {
+  assert.equal(conversionRate('USD', 'CNY', 0), 1, 'no rate means no conversion')
+  assert.equal(conversionRate('USD', 'CNY', undefined), 1)
+  assert.equal(conversionRate('USD', 'CNY', -3), 1, 'a negative rate is not a rate')
+  assert.equal(conversionRate('USD', 'CNY', Number.NaN), 1)
+  assert.equal(conversionRate('USD', 'USD', 7.2), 1, 'same currency on both sides')
+  assert.equal(conversionRate(null, 'CNY', 7.2), 1, 'an unknown API currency cannot be converted')
+  assert.equal(conversionRate('USD', null, 7.2), 1)
+})
+
+test('a rate converts between the two currencies DeepSeek bills in', () => {
+  assert.equal(conversionRate('USD', 'CNY', 7.2), 7.2)
+  assert.equal(conversionRate('CNY', 'USD', 7.2), 1 / 7.2)
+  assert.equal(conversionRate('usd', 'cny', 7.2), 7.2, 'codes are matched case-insensitively')
+})
+
+test('a converted balance states the currency it was converted into', () => {
+  // ¥ for a USD account only means something if the figure was converted, so the pair
+  // moves together: rate 7.2 on 39.56 renders as a yuan amount.
+  const rate = conversionRate('USD', 'CNY', 7.2)
+  assert.equal(formatMoney(39.56 * rate, 'CNY'), '¥284.83')
+  assert.equal(formatMoney(39.56, 'CNY'), '¥39.56', 'rate 0 relabels, it does not convert')
 })
 
 test('the client never hardcodes a currency symbol', () => {

@@ -83,6 +83,20 @@ it opens eight hours of ten-minute bars.
 - Spend is a derived quantity, so history begins when the plugin does. Nothing can
   reconstruct usage from before it was installed.
 
+### Which currency is shown
+
+The balance API answers in the account's own currency — for some accounts `USD`, for
+others `CNY` — and both the figure and its symbol come from that answer.
+
+**Balance currency** overrides the symbol: *Follow the API* (the default), `¥ CNY`, or
+`$ USD`. On its own the override only relabels the API's figure, which would misstate the
+amount if the two currencies differ, so choosing one also reveals **CNY per USD**. Leave
+that at 0 to show the API's figure unchanged; set a rate and every amount — balance,
+hover breakdown, chart bars — is converted at it.
+
+Neither knob follows the interface language: a Chinese UI showing a USD account still
+shows the API's dollar figure unless you say otherwise.
+
 ## Settings
 
 | Setting | Meaning |
@@ -95,6 +109,7 @@ it opens eight hours of ten-minute bars.
 | Warn before pause | How long before a window the notice appears. |
 | Applies to | All calls, or DeepSeek official routes only. Default is official routes, because peak pricing exists only there. |
 | Show API balance | Balance figure and spend chart. |
+| Balance currency | Symbol to show, and the rate to convert with. See above. |
 | Show the status in the header | Hide the header entry entirely. |
 
 ## Language
@@ -124,7 +139,7 @@ and the schedule logic must be shared verbatim with the host:
 
 ```sh
 node scripts/build-client.mjs   # src/{core,spend,money,i18n,client}.js -> client.js
-node tests/run.mjs              # 154 tests
+node tests/run.mjs              # 159 tests
 ```
 
 `tests/bundle.test.mjs` fails if `client.js` drifts from its sources, so run the build

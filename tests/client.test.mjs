@@ -112,8 +112,9 @@ const idleConfig = {
   windows: [],
   activeDays: [],
   warnMinutes: 5,
-  maxHoldMinutes: 30,
   routeFilter: 'all',
+  currency: 'auto',
+  cnyPerUsd: 0,
 }
 
 const configCoveringNow = () => {
@@ -299,4 +300,54 @@ test('the status dot sits after the label so it separates label from balance', (
 test('apply degrades instead of throwing when the services are absent', () => {
   const plugin = loadBundle().factory(fakeRequire)
   assert.doesNotThrow(() => plugin.apply({ get: () => undefined }))
+})
+
+// The settings section renders through its own component, the same way the header does.
+const renderSection = (registered) => {
+  const section = registered.find((entry) => entry.options.id === 'offpeak')
+  const wrapper = section.component()
+  return typeof wrapper.type === 'function' ? wrapper.type(wrapper.props) : wrapper
+}
+
+const findSelect = (node, value) => {
+  if (!node || typeof node !== 'object') return undefined
+  if (node.type === 'select' && node.props?.value === value) return node
+  for (const child of node.children ?? []) {
+    const hit = findSelect(child, value)
+    if (hit) return hit
+  }
+  return undefined
+}
+
+test('the currency setting is offered, defaulting to the API currency', () => {
+  const plugin = loadBundle().factory(fakeRequire)
+  const { ctx, registered } = harness(idleConfig)
+  plugin.apply(ctx)
+
+  const select = findSelect(renderSection(registered), 'auto')
+  assert.ok(select, 'the balance currency picker must be present')
+  assert.deepEqual(
+    select.children.map((option) => option.props.value),
+    ['auto', 'CNY', 'USD'],
+  )
+  assert.equal(findSelect(renderSection(registered), undefined) === undefined, true, 'no rate field while following the API')
+})
+
+test('forcing a currency reveals the rate field, which is saved with the rest', async () => {
+  const plugin = loadBundle().factory(fakeRequire)
+  const { ctx, registered, writes } = harness({ ...idleConfig, currency: 'CNY' })
+  plugin.apply(ctx)
+
+  const tree = renderSection(registered)
+  const rate = findElement(tree, (node) => node.type === 'input' && node.props?.step === 0.01)
+  assert.ok(rate, 'a rate field must appear once a currency is forced')
+  assert.equal(rate.props.value, 0)
+
+  const save = findElement(tree, (node) => node.type === 'button' && allText(node) === 'Save')
+  await save.props.onClick()
+  const ops = writes.find(([field]) => field === 'mutate')[1]
+  assert.deepEqual(ops.filter((op) => op.path[0] === 'currency' || op.path[0] === 'cnyPerUsd'), [
+    { op: 'set', path: ['currency'], value: 'CNY' },
+    { op: 'set', path: ['cnyPerUsd'], value: 0 },
+  ])
 })

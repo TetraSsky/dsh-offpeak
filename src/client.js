@@ -15,7 +15,7 @@ import {
   wallToInstant,
 } from './core.js'
 import { fallbackLocale, translate } from './i18n.js'
-import { formatMoney } from './money.js'
+import { conversionRate, formatMoney } from './money.js'
 import { BUCKET_MS, WINDOW_BUCKETS, bucketLabel, spendBars, windowRangeLabel } from './spend.js'
 
 const NS = 'offpeak'
@@ -56,8 +56,8 @@ const localTimeFor = (scheduleZone, hhmm, viewerZone) => {
   return formatHHMM(wallClock(viewerZone, new Date(instant)).minutes)
 }
 
-const formatBalance = (balance) =>
-  balance && balance.total !== null && balance.total !== undefined ? formatMoney(balance.total, balance.currency) : ''
+const formatBalance = (balance, money) =>
+  balance && balance.total !== null && balance.total !== undefined ? money(balance.total) : ''
 
 const describe = (state, config, t) => {
   if (state.state === 'PAUSED') {
@@ -368,9 +368,12 @@ function HeaderEntry({ scope, locale, connection }) {
 
   const showBalance = ready && config.showBalance === true && connection !== undefined
 
-  // The history carries its own currency, so the chart is labelled correctly even when
-  // the balance endpoint is unavailable. The header uses the balance's own.
-  const currency = chartData?.currency ?? balance?.currency ?? null
+  // The history carries its own currency, so amounts stay labelled when the balance
+  // endpoint is unavailable. A forced currency relabels; only a rate converts.
+  const apiCurrency = chartData?.currency ?? balance?.currency ?? null
+  const displayCurrency = ready && config.currency !== undefined && config.currency !== 'auto' ? config.currency : apiCurrency
+  const rate = conversionRate(apiCurrency, displayCurrency, ready ? config.cnyPerUsd : 0)
+  const money = (value) => formatMoney(value * rate, displayCurrency)
 
   // Polled whenever the balance is on screen, not only when the chart is open: the hover breakdown needs the same series.
   React.useEffect(() => {
@@ -462,7 +465,7 @@ function HeaderEntry({ scope, locale, connection }) {
                 onMouseEnter: () => setHoveringBalance(true),
                 onMouseLeave: () => setHoveringBalance(false),
               },
-              formatBalance(balance),
+              formatBalance(balance, money),
             ),
             hoveringBalance && !chartOpen
               ? h(
@@ -471,9 +474,9 @@ function HeaderEntry({ scope, locale, connection }) {
                   h(
                     'div',
                     null,
-                    `${formatBalance(balance)} ${t('balance')}`,
+                    `${formatBalance(balance, money)} ${t('balance')}`,
                     balance.granted !== null || balance.toppedUp !== null
-                      ? ` (${t('granted')} ${formatMoney(balance.granted, currency)} · ${t('toppedUp')} ${formatMoney(balance.toppedUp, currency)})`
+                      ? ` (${t('granted')} ${money(balance.granted)} · ${t('toppedUp')} ${money(balance.toppedUp)})`
                       : '',
                   ),
                   chartData
@@ -483,14 +486,14 @@ function HeaderEntry({ scope, locale, connection }) {
                         h(
                           'span',
                           null,
-                          `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
+                          `${t('spent10m')} ${money(chartData.spends.m10)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
                         ),
                         h(
                           'span',
                           null,
-                          `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
+                          `${t('spent1h')} ${money(chartData.spends.h1)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
                         ),
-                        h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
+                        h('span', null, `${t('spent24h')} ${money(chartData.spends.h24)}`),
                       )
                     : null,
                   h('div', { style: styles.hint }, t('chartNote')),
@@ -550,7 +553,7 @@ function HeaderEntry({ scope, locale, connection }) {
                   h('div', {
                     key: index,
                     title: `${bucketLabel(index, chartData.now, WINDOW_BUCKETS, BUCKET_MS)} · ${
-                      value === null ? t('chartNoData') : formatMoney(value, currency)
+                      value === null ? t('chartNoData') : money(value)
                     }`,
                     style: {
                       ...styles.bar,
@@ -564,9 +567,9 @@ function HeaderEntry({ scope, locale, connection }) {
           h(
             'div',
             { style: styles.spends },
-            h('span', null, `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)}`),
-            h('span', null, `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)}`),
-            h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
+            h('span', null, `${t('spent10m')} ${money(chartData.spends.m10)}`),
+            h('span', null, `${t('spent1h')} ${money(chartData.spends.h1)}`),
+            h('span', null, `${t('spent24h')} ${money(chartData.spends.h24)}`),
           ),
           h('div', { style: styles.hint }, t('chartNote')),
         )
@@ -581,6 +584,8 @@ const toDraft = (config) => ({
   activeDays: [...(config.activeDays ?? [])],
   warnMinutes: config.warnMinutes,
   routeFilter: config.routeFilter,
+  currency: config.currency ?? 'auto',
+  cnyPerUsd: config.cnyPerUsd ?? 0,
 })
 
 function SettingsPage({ scope, locale }) {
@@ -590,7 +595,9 @@ function SettingsPage({ scope, locale }) {
   const browser = React.useMemo(browserZone, [])
 
   const config = snapshot.value
-  const [draft, setDraft] = React.useState(null)
+  // Seeded from the config already in hand, so the page paints on the first render
+  // instead of flashing the placeholder until the effect runs.
+  const [draft, setDraft] = React.useState(() => (config ? toDraft(config) : null))
   const [dirty, setDirty] = React.useState(false)
   const [message, setMessage] = React.useState(null)
   const [busy, setBusy] = React.useState(false)
@@ -636,6 +643,8 @@ function SettingsPage({ scope, locale }) {
         { op: 'set', path: ['activeDays'], value: draft.activeDays },
         { op: 'set', path: ['warnMinutes'], value: Number(draft.warnMinutes) },
         { op: 'set', path: ['routeFilter'], value: draft.routeFilter },
+        { op: 'set', path: ['currency'], value: draft.currency },
+        { op: 'set', path: ['cnyPerUsd'], value: Number(draft.cnyPerUsd) },
       ])
       setDirty(false)
       setMessage({ kind: 'ok', text: t('saved') })
@@ -834,6 +843,35 @@ function SettingsPage({ scope, locale }) {
         { label: t('showBalance'), hint: t('showBalanceHint') },
         h(Switch, { checked: config.showBalance === true, onChange: (value) => writeImmediately('showBalance', value) }),
       ),
+      h(
+        Row,
+        { label: t('currency'), hint: t('currencyHint') },
+        h(
+          'select',
+          {
+            style: styles.control,
+            value: draft.currency,
+            onChange: (event) => patch({ currency: event.target.value }),
+          },
+          h('option', { value: 'auto' }, t('currencyAuto')),
+          h('option', { value: 'CNY' }, '¥ CNY'),
+          h('option', { value: 'USD' }, '$ USD'),
+        ),
+      ),
+      draft.currency === 'auto'
+        ? null
+        : h(
+            Row,
+            { label: t('cnyPerUsd'), hint: t('cnyPerUsdHint') },
+            h('input', {
+              type: 'number',
+              min: 0,
+              step: 0.01,
+              style: { ...styles.control, width: '80px' },
+              value: draft.cnyPerUsd,
+              onChange: (event) => patch({ cnyPerUsd: Number(event.target.value) }),
+            }),
+          ),
       h(
         Row,
         { label: t('showStatus'), hint: t('showStatusHint') },

@@ -392,9 +392,8 @@ const currencySymbol = (currency) =>
   typeof currency === 'string' ? SYMBOLS[currency.trim().toUpperCase()] ?? '' : ''
 
 /**
- * Format an amount in its own currency. The symbol follows the currency the API
- * reported, never the interface language: showing ¥ for a USD balance because the UI is
- * Chinese would misreport the figure.
+ * Format an amount in the given currency. The symbol is the currency's own, so a CNY
+ * figure never wears a dollar sign and the other way round.
  */
 const formatMoney = (value, currency) => {
   // `?? 0` is not enough: Number('x') is NaN, and NaN.toFixed(2) renders "NaN".
@@ -404,6 +403,22 @@ const formatMoney = (value, currency) => {
   if (symbol !== '') return `${symbol}${amount}`
   const code = typeof currency === 'string' ? currency.trim().toUpperCase() : ''
   return code === '' ? amount : `${amount} ${code}`
+}
+
+/**
+ * Multiplier taking an amount from the currency the API reported to the one the user
+ * asked for on screen. DeepSeek bills in CNY or USD, so one rate quoted as CNY per USD
+ * covers both directions. No rate, or the same currency on both sides, returns 1: the
+ * figure is then shown exactly as the API returned it, and only the symbol changes.
+ */
+const conversionRate = (apiCurrency, displayCurrency, cnyPerUsd) => {
+  const from = typeof apiCurrency === 'string' ? apiCurrency.trim().toUpperCase() : ''
+  const to = typeof displayCurrency === 'string' ? displayCurrency.trim().toUpperCase() : ''
+  const rate = Number(cnyPerUsd)
+  if (!(rate > 0) || from === '' || to === '' || from === to) return 1
+  if (from === 'USD' && to === 'CNY') return rate
+  if (from === 'CNY' && to === 'USD') return 1 / rate
+  return 1
 }
 
 const fallbackLocale = 'en'
@@ -448,6 +463,12 @@ const dictionaries = {
     routeDeepSeek: 'DeepSeek official routes only',
     showBalance: 'Show API balance',
     showBalanceHint: 'Reads the DeepSeek account balance with your stored API key. The key never leaves the host.',
+    currency: 'Balance currency',
+    currencyAuto: 'Follow the API',
+    currencyHint:
+      'The balance API reports your account in its own currency. Choosing another one changes the symbol only, unless you also set a rate below.',
+    cnyPerUsd: 'CNY per USD',
+    cnyPerUsdHint: 'Set a rate, for example 7.2, to convert the API figure. 0 keeps the figure as the API reported it.',
     showStatus: 'Show the status in the header',
     showStatusHint: 'Turn this off to hide the off-peak entry from the conversation header entirely.',
     chartTitle: 'Spend, last 8 h (per 10 min)',
@@ -518,6 +539,11 @@ const dictionaries = {
     routeDeepSeek: '仅 DeepSeek 官方线路',
     showBalance: '显示 API 余额',
     showBalanceHint: '使用已保存的 API 密钥读取 DeepSeek 账户余额。密钥不会离开主机。',
+    currency: '余额货币',
+    currencyAuto: '跟随 API',
+    currencyHint: '余额 API 按你账户自身的货币返回金额。若选择其他货币，则只更改符号；如需换算，请在下方设置汇率。',
+    cnyPerUsd: '每美元兑人民币',
+    cnyPerUsdHint: '设置汇率（例如 7.2）以换算 API 金额；设为 0 则按 API 返回的金额原样显示。',
     showStatus: '在页眉显示状态',
     showStatusHint: '关闭后将从对话页眉中完全移除低谷时段条目。',
     chartTitle: '近 8 小时支出（每 10 分钟）',
@@ -603,8 +629,8 @@ const localTimeFor = (scheduleZone, hhmm, viewerZone) => {
   return formatHHMM(wallClock(viewerZone, new Date(instant)).minutes)
 }
 
-const formatBalance = (balance) =>
-  balance && balance.total !== null && balance.total !== undefined ? formatMoney(balance.total, balance.currency) : ''
+const formatBalance = (balance, money) =>
+  balance && balance.total !== null && balance.total !== undefined ? money(balance.total) : ''
 
 const describe = (state, config, t) => {
   if (state.state === 'PAUSED') {
@@ -915,9 +941,12 @@ function HeaderEntry({ scope, locale, connection }) {
 
   const showBalance = ready && config.showBalance === true && connection !== undefined
 
-  // The history carries its own currency, so the chart is labelled correctly even when
-  // the balance endpoint is unavailable. The header uses the balance's own.
-  const currency = chartData?.currency ?? balance?.currency ?? null
+  // The history carries its own currency, so amounts stay labelled when the balance
+  // endpoint is unavailable. A forced currency relabels; only a rate converts.
+  const apiCurrency = chartData?.currency ?? balance?.currency ?? null
+  const displayCurrency = ready && config.currency !== undefined && config.currency !== 'auto' ? config.currency : apiCurrency
+  const rate = conversionRate(apiCurrency, displayCurrency, ready ? config.cnyPerUsd : 0)
+  const money = (value) => formatMoney(value * rate, displayCurrency)
 
   // Polled whenever the balance is on screen, not only when the chart is open: the hover breakdown needs the same series.
   React.useEffect(() => {
@@ -1009,7 +1038,7 @@ function HeaderEntry({ scope, locale, connection }) {
                 onMouseEnter: () => setHoveringBalance(true),
                 onMouseLeave: () => setHoveringBalance(false),
               },
-              formatBalance(balance),
+              formatBalance(balance, money),
             ),
             hoveringBalance && !chartOpen
               ? h(
@@ -1018,9 +1047,9 @@ function HeaderEntry({ scope, locale, connection }) {
                   h(
                     'div',
                     null,
-                    `${formatBalance(balance)} ${t('balance')}`,
+                    `${formatBalance(balance, money)} ${t('balance')}`,
                     balance.granted !== null || balance.toppedUp !== null
-                      ? ` (${t('granted')} ${formatMoney(balance.granted, currency)} · ${t('toppedUp')} ${formatMoney(balance.toppedUp, currency)})`
+                      ? ` (${t('granted')} ${money(balance.granted)} · ${t('toppedUp')} ${money(balance.toppedUp)})`
                       : '',
                   ),
                   chartData
@@ -1030,14 +1059,14 @@ function HeaderEntry({ scope, locale, connection }) {
                         h(
                           'span',
                           null,
-                          `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
+                          `${t('spent10m')} ${money(chartData.spends.m10)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
                         ),
                         h(
                           'span',
                           null,
-                          `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
+                          `${t('spent1h')} ${money(chartData.spends.h1)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
                         ),
-                        h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
+                        h('span', null, `${t('spent24h')} ${money(chartData.spends.h24)}`),
                       )
                     : null,
                   h('div', { style: styles.hint }, t('chartNote')),
@@ -1097,7 +1126,7 @@ function HeaderEntry({ scope, locale, connection }) {
                   h('div', {
                     key: index,
                     title: `${bucketLabel(index, chartData.now, WINDOW_BUCKETS, BUCKET_MS)} · ${
-                      value === null ? t('chartNoData') : formatMoney(value, currency)
+                      value === null ? t('chartNoData') : money(value)
                     }`,
                     style: {
                       ...styles.bar,
@@ -1111,9 +1140,9 @@ function HeaderEntry({ scope, locale, connection }) {
           h(
             'div',
             { style: styles.spends },
-            h('span', null, `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)}`),
-            h('span', null, `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)}`),
-            h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
+            h('span', null, `${t('spent10m')} ${money(chartData.spends.m10)}`),
+            h('span', null, `${t('spent1h')} ${money(chartData.spends.h1)}`),
+            h('span', null, `${t('spent24h')} ${money(chartData.spends.h24)}`),
           ),
           h('div', { style: styles.hint }, t('chartNote')),
         )
@@ -1128,6 +1157,8 @@ const toDraft = (config) => ({
   activeDays: [...(config.activeDays ?? [])],
   warnMinutes: config.warnMinutes,
   routeFilter: config.routeFilter,
+  currency: config.currency ?? 'auto',
+  cnyPerUsd: config.cnyPerUsd ?? 0,
 })
 
 function SettingsPage({ scope, locale }) {
@@ -1137,7 +1168,9 @@ function SettingsPage({ scope, locale }) {
   const browser = React.useMemo(browserZone, [])
 
   const config = snapshot.value
-  const [draft, setDraft] = React.useState(null)
+  // Seeded from the config already in hand, so the page paints on the first render
+  // instead of flashing the placeholder until the effect runs.
+  const [draft, setDraft] = React.useState(() => (config ? toDraft(config) : null))
   const [dirty, setDirty] = React.useState(false)
   const [message, setMessage] = React.useState(null)
   const [busy, setBusy] = React.useState(false)
@@ -1183,6 +1216,8 @@ function SettingsPage({ scope, locale }) {
         { op: 'set', path: ['activeDays'], value: draft.activeDays },
         { op: 'set', path: ['warnMinutes'], value: Number(draft.warnMinutes) },
         { op: 'set', path: ['routeFilter'], value: draft.routeFilter },
+        { op: 'set', path: ['currency'], value: draft.currency },
+        { op: 'set', path: ['cnyPerUsd'], value: Number(draft.cnyPerUsd) },
       ])
       setDirty(false)
       setMessage({ kind: 'ok', text: t('saved') })
@@ -1381,6 +1416,35 @@ function SettingsPage({ scope, locale }) {
         { label: t('showBalance'), hint: t('showBalanceHint') },
         h(Switch, { checked: config.showBalance === true, onChange: (value) => writeImmediately('showBalance', value) }),
       ),
+      h(
+        Row,
+        { label: t('currency'), hint: t('currencyHint') },
+        h(
+          'select',
+          {
+            style: styles.control,
+            value: draft.currency,
+            onChange: (event) => patch({ currency: event.target.value }),
+          },
+          h('option', { value: 'auto' }, t('currencyAuto')),
+          h('option', { value: 'CNY' }, '¥ CNY'),
+          h('option', { value: 'USD' }, '$ USD'),
+        ),
+      ),
+      draft.currency === 'auto'
+        ? null
+        : h(
+            Row,
+            { label: t('cnyPerUsd'), hint: t('cnyPerUsdHint') },
+            h('input', {
+              type: 'number',
+              min: 0,
+              step: 0.01,
+              style: { ...styles.control, width: '80px' },
+              value: draft.cnyPerUsd,
+              onChange: (event) => patch({ cnyPerUsd: Number(event.target.value) }),
+            }),
+          ),
       h(
         Row,
         { label: t('showStatus'), hint: t('showStatusHint') },
