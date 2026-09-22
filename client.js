@@ -920,13 +920,18 @@ function DayPicker({ value, onChange, t }) {
   )
 }
 
+// Remembered for the page rather than for the component: the header entry remounts every
+// time the slot switches session, and a notice the user dismissed must not come back with
+// it. A reload drops it on purpose, so a freshly loaded page warns again.
+let dismissedOccurrence = null
+
 function HeaderEntry({ scope, locale, connection }) {
   const snapshot = useScope(scope)
   const localeId = useLocaleId(locale)
   const t = (key, vars) => translate(localeId, key, vars)
   const now = useNow(1000)
 
-  const [dismissedFor, setDismissedFor] = React.useState(null)
+  const [dismissedFor, setDismissedFor] = React.useState(dismissedOccurrence)
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [balance, setBalance] = React.useState(null)
@@ -1102,7 +1107,14 @@ function HeaderEntry({ scope, locale, connection }) {
             : t('bannerWarn', { minutes: state.minutesUntil }),
           h(
             'button',
-            { type: 'button', style: styles.button, onClick: () => setDismissedFor(state.occurrenceId) },
+            {
+              type: 'button',
+              style: styles.button,
+              onClick: () => {
+                dismissedOccurrence = state.occurrenceId
+                setDismissedFor(state.occurrenceId)
+              },
+            },
             t('dismiss'),
           ),
         )

@@ -48,6 +48,12 @@ A held request is released when its window ends, when the request is aborted, wh
 schedule changes so it is no longer held, or when the plugin unloads. A restart resumes
 exactly the goals this plugin paused, using a record it keeps for that purpose.
 
+While the window is open (or about to open) the header carries a notice with a **Dismiss**
+button. Dismissing it silences that window for the rest of the page session — switching
+chats does not bring it back, since the header entry is rebuilt for every session — while a
+reload starts fresh and warns again. A different window is a different occurrence and is
+always announced.
+
 ## Schedule and time zones
 
 Peak pricing is defined in Beijing time, so the plugin keeps two zones apart:

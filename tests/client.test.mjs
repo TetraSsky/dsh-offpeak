@@ -228,6 +228,54 @@ test('a disabled schedule shows no banner at all', () => {
   assert.equal(labels.includes('Dismiss'), false)
 })
 
+const configWarningOtherWindow = () => {
+  const zone = 'Asia/Shanghai'
+  const nowMinutes = wallClock(zone, new Date()).minutes
+  return {
+    ...idleConfig,
+    enabled: true,
+    warnMinutes: 5,
+    windows: [{ id: 'later', pauseAt: formatHHMM(nowMinutes + 3), resumeAt: formatHHMM(nowMinutes + 60) }],
+  }
+}
+
+test('a dismissed notice stays dismissed when the entry remounts on a session switch', () => {
+  // Switching chats tears down and rebuilds the header entry, so component state alone
+  // would bring the notice straight back for an occurrence the user already dismissed.
+  const plugin = loadBundle().factory(fakeRequire)
+  const { ctx, overlay } = harness(configWarningSoon())
+  plugin.apply(ctx)
+
+  const dismiss = findElement(
+    renderEntry(overlay().component),
+    (node) => node.type === 'button' && allText(node) === 'Dismiss',
+  )
+  assert.ok(dismiss, 'the notice must offer Dismiss to begin with')
+  dismiss.props.onClick()
+
+  const remounted = buttonLabels(renderEntry(overlay().component))
+  assert.equal(remounted.includes('Dismiss'), false, 'the notice came back on remount')
+})
+
+test('a new occurrence is announced even when the previous one was dismissed', () => {
+  const plugin = loadBundle().factory(fakeRequire)
+  const first = harness(configWarningSoon())
+  plugin.apply(first.ctx)
+
+  const dismiss = findElement(
+    renderEntry(first.overlay().component),
+    (node) => node.type === 'button' && allText(node) === 'Dismiss',
+  )
+  dismiss.props.onClick()
+
+  // A different window is a different occurrence, so silencing the first must not hide it.
+  const second = harness(configWarningOtherWindow())
+  plugin.apply(second.ctx)
+
+  const labels = buttonLabels(renderEntry(second.overlay().component))
+  assert.ok(labels.includes('Dismiss'), `a new window must still warn, got ${JSON.stringify(labels)}`)
+})
+
 test('the header label itself follows the locale, not just the state word', () => {
   // The prefix used to be a hardcoded English "offpeak: ", so a Chinese UI showed
   // Chinese state text behind an English label.
