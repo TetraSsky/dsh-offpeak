@@ -218,6 +218,27 @@ test('a disabled schedule shows no banner at all', () => {
   assert.equal(labels.includes('Dismiss'), false)
 })
 
+test('the header label itself follows the locale, not just the state word', () => {
+  // The prefix used to be a hardcoded English "offpeak: ", so a Chinese UI showed
+  // Chinese state text behind an English label.
+  const chinese = (() => {
+    const plugin = loadBundle().factory(fakeRequire)
+    const { ctx, overlay } = harness(idleConfig, 'zh')
+    plugin.apply(ctx)
+    return allText(renderEntry(overlay().component))
+  })()
+  assert.match(chinese, /低谷时段：已关闭/)
+  assert.equal(chinese.includes('offpeak:'), false, 'no English label in the Chinese UI')
+
+  const english = (() => {
+    const plugin = loadBundle().factory(fakeRequire)
+    const { ctx, overlay } = harness(idleConfig, 'en')
+    plugin.apply(ctx)
+    return allText(renderEntry(overlay().component))
+  })()
+  assert.match(english, /offpeak: off/)
+})
+
 test('strings follow the active DSH locale', () => {
   const plugin = loadBundle().factory(fakeRequire)
   const { ctx, overlay, registered } = harness(idleConfig, 'zh')
@@ -225,7 +246,7 @@ test('strings follow the active DSH locale', () => {
 
   assert.equal(registered.find((entry) => entry.options.id === 'offpeak').options.label, '低谷时段')
   const tree = renderEntry(overlay().component)
-  assert.match(allText(tree), /offpeak: 已关闭/)
+  assert.match(allText(tree), /低谷时段：已关闭/)
   assert.equal(findElement(tree, (node) => node.type === 'button').children.join(''), '启用')
 })
 

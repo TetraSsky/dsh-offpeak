@@ -14,6 +14,42 @@ test('the dictionaries are exactly the locales the harness ships', () => {
   assert.deepEqual(Object.keys(dictionaries).sort(), ['en', 'zh'])
 })
 
+test('no Chinese string is a leftover copy of the English', () => {
+  // Catches a key added to both dictionaries but only translated in one.
+  const allowed = new Set(['statusLoading'])
+  const copied = Object.keys(dictionaries.en).filter(
+    (key) => !allowed.has(key) && dictionaries.zh[key] === dictionaries.en[key],
+  )
+  assert.deepEqual(copied, [], 'these keys were never actually translated')
+})
+
+test('the header label, balance breakdown and chart labels are translated', () => {
+  const surface = [
+    'statusLine',
+    'statusDisabled',
+    'statusWaiting',
+    'statusWarn',
+    'statusPaused',
+    'bannerPaused',
+    'bannerWarn',
+    'balance',
+    'granted',
+    'toppedUp',
+    'spent10m',
+    'spent1h',
+    'spent24h',
+    'chartTitle',
+    'chartNoData',
+    'chartCollecting',
+    'chartNote',
+    'dismiss',
+  ]
+  for (const key of surface) {
+    assert.notEqual(dictionaries.zh[key], dictionaries.en[key], `${key} is still English`)
+    assert.match(dictionaries.zh[key], /[\u4e00-\u9fff]/, `${key} has no Chinese characters`)
+  }
+})
+
 test('every dictionary carries exactly the same keys', () => {
   const reference = Object.keys(dictionaries.en).sort()
   assert.ok(reference.length > 50, `expected a substantial key set, found ${reference.length}`)

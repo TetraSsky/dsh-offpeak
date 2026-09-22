@@ -77,6 +77,14 @@ const describe = (state, config, t) => {
   return t('statusWaiting')
 }
 
+// Before the settings scope resolves there is no state to describe, only the scope's own
+// status word, which arrives in English from the settings transport.
+const describeAvailability = (status, t) => {
+  if (status === 'loading') return t('statusLoading')
+  if (status === 'unavailable') return t('statusUnavailable')
+  return status
+}
+
 const useScope = (scope) =>
   React.useSyncExternalStore(
     (onChange) => scope.subscribe(onChange),
@@ -437,7 +445,7 @@ function HeaderEntry({ scope, locale, connection }) {
   return h(
     'div',
     { style: styles.entry },
-    h('span', null, ready ? `offpeak: ${describe(state, config, t)}` : `offpeak: ${snapshot.status}`),
+    h('span', null, t('statusLine', { status: ready ? describe(state, config, t) : describeAvailability(snapshot.status, t) })),
     // Trailing, so it separates the label from the balance instead of running them together.
     h('span', { style: { ...styles.dot, background: ready ? toneFor(state) : TONE.disabled } }),
     showBalance
@@ -593,7 +601,11 @@ function SettingsPage({ scope, locale }) {
   }, [config, dirty])
 
   if (snapshot.status !== 'ready' || !config || !draft) {
-    return h('div', { style: styles.page }, h('div', { style: styles.hint }, `offpeak: ${snapshot.status}`))
+    return h(
+      'div',
+      { style: styles.page },
+      h('div', { style: styles.hint }, t('statusLine', { status: describeAvailability(snapshot.status, t) })),
+    )
   }
 
   const patch = (changes) => {

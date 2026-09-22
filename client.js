@@ -441,13 +441,15 @@ const dictionaries = {
     saved: 'Saved',
     saveFailed: 'Could not save',
     dirty: 'Unsaved changes',
+    statusLine: 'offpeak: {status}',
+    statusLoading: 'loading',
+    statusUnavailable: 'unavailable',
     statusDisabled: 'off',
     statusWaiting: 'waiting for peak hours',
     statusOffPeakDay: 'off-peak day',
     statusWarn: 'pausing in {minutes} min',
     statusPaused: 'paused until {time}',
     balance: 'Balance',
-    statusHeld: '{count} request(s) held',
     dismiss: 'Dismiss',
     bannerPaused: 'Model calls are held until {time} to avoid peak pricing.',
     bannerWarn: 'Peak hours start in {minutes} min. Model calls will be held.',
@@ -509,13 +511,15 @@ const dictionaries = {
     saved: '已保存',
     saveFailed: '保存失败',
     dirty: '有未保存的更改',
+    statusLine: '低谷时段：{status}',
+    statusLoading: '加载中',
+    statusUnavailable: '不可用',
     statusDisabled: '已关闭',
     statusWaiting: '等待高峰时段',
     statusOffPeakDay: '低谷日',
     statusWarn: '{minutes} 分钟后暂停',
     statusPaused: '已暂停，至 {time}',
     balance: '余额',
-    statusHeld: '已挂起 {count} 个请求',
     dismiss: '隐藏',
     bannerPaused: '为避免高峰定价，模型调用将挂起至 {time}。',
     bannerWarn: '高峰时段将在 {minutes} 分钟后开始，届时模型调用会被挂起。',
@@ -597,6 +601,14 @@ const describe = (state, config, t) => {
   if (state.reason === 'disabled') return t('statusDisabled')
   if (state.reason === 'weekday-off') return t('statusOffPeakDay')
   return t('statusWaiting')
+}
+
+// Before the settings scope resolves there is no state to describe, only the scope's own
+// status word, which arrives in English from the settings transport.
+const describeAvailability = (status, t) => {
+  if (status === 'loading') return t('statusLoading')
+  if (status === 'unavailable') return t('statusUnavailable')
+  return status
 }
 
 const useScope = (scope) =>
@@ -959,7 +971,7 @@ function HeaderEntry({ scope, locale, connection }) {
   return h(
     'div',
     { style: styles.entry },
-    h('span', null, ready ? `offpeak: ${describe(state, config, t)}` : `offpeak: ${snapshot.status}`),
+    h('span', null, t('statusLine', { status: ready ? describe(state, config, t) : describeAvailability(snapshot.status, t) })),
     // Trailing, so it separates the label from the balance instead of running them together.
     h('span', { style: { ...styles.dot, background: ready ? toneFor(state) : TONE.disabled } }),
     showBalance
@@ -1115,7 +1127,11 @@ function SettingsPage({ scope, locale }) {
   }, [config, dirty])
 
   if (snapshot.status !== 'ready' || !config || !draft) {
-    return h('div', { style: styles.page }, h('div', { style: styles.hint }, `offpeak: ${snapshot.status}`))
+    return h(
+      'div',
+      { style: styles.page },
+      h('div', { style: styles.hint }, t('statusLine', { status: describeAvailability(snapshot.status, t) })),
+    )
   }
 
   const patch = (changes) => {
