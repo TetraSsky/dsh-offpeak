@@ -352,6 +352,11 @@ function DayPicker({ value, onChange, t }) {
 // it. A reload drops it on purpose, so a freshly loaded page warns again.
 let dismissedOccurrence = null
 
+// Remembered for the page for the same reason: the balance and the chart arrive from
+// asynchronous reads, so a rebuilt entry must start from the last figures instead of
+// painting a header without them and adding the number a frame later.
+const remembered = { balance: null, balanceError: '', chart: null }
+
 function HeaderEntry({ scope, locale, connection }) {
   const snapshot = useScope(scope)
   const localeId = useLocaleId(locale)
@@ -361,10 +366,10 @@ function HeaderEntry({ scope, locale, connection }) {
   const [dismissedFor, setDismissedFor] = React.useState(dismissedOccurrence)
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
-  const [balance, setBalance] = React.useState(null)
-  const [balanceError, setBalanceError] = React.useState('')
+  const [balance, setBalance] = React.useState(remembered.balance)
+  const [balanceError, setBalanceError] = React.useState(remembered.balanceError)
   const [chartOpen, setChartOpen] = React.useState(false)
-  const [chartData, setChartData] = React.useState(null)
+  const [chartData, setChartData] = React.useState(remembered.chart)
   const [hoveringBalance, setHoveringBalance] = React.useState(false)
 
   const config = snapshot.value
@@ -380,6 +385,14 @@ function HeaderEntry({ scope, locale, connection }) {
   const rate = conversionRate(apiCurrency, displayCurrency, ready ? config.cnyPerUsd : 0)
   const money = (value) => formatMoney(value * rate, displayCurrency)
 
+  // Written through to the page-scoped copy as well, so the next mount starts from it.
+  const rememberBalance = (value, message) => {
+    remembered.balance = value
+    remembered.balanceError = message
+    setBalance(value)
+    setBalanceError(message)
+  }
+
   // Polled whenever the balance is on screen, not only when the chart is open: the hover breakdown needs the same series.
   React.useEffect(() => {
     if ((!showBalance && !chartOpen) || connection === undefined) return undefined
@@ -387,7 +400,10 @@ function HeaderEntry({ scope, locale, connection }) {
     const load = async () => {
       try {
         const result = await connection.rpc.call('/offpeak', 'history', null)
-        if (!cancelled && result.ok) setChartData(result.value)
+        if (!cancelled && result.ok) {
+          remembered.chart = result.value
+          setChartData(result.value)
+        }
       } catch {
         // keep the previous series rather than blanking the view
       }
@@ -402,8 +418,7 @@ function HeaderEntry({ scope, locale, connection }) {
 
   React.useEffect(() => {
     if (!showBalance) {
-      setBalance(null)
-      setBalanceError('')
+      rememberBalance(null, '')
       return undefined
     }
     let cancelled = false
@@ -412,14 +427,12 @@ function HeaderEntry({ scope, locale, connection }) {
         const result = await connection.rpc.call('/offpeak', 'balance', null)
         if (cancelled) return
         if (result.ok) {
-          setBalance(result.value)
-          setBalanceError('')
+          rememberBalance(result.value, '')
         } else {
-          setBalance(null)
-          setBalanceError(result.error.message)
+          rememberBalance(null, result.error.message)
         }
       } catch (cause) {
-        if (!cancelled) setBalanceError(String((cause && cause.message) || cause))
+        if (!cancelled) rememberBalance(remembered.balance, String((cause && cause.message) || cause))
       }
     }
     void load()

@@ -145,7 +145,7 @@ and the schedule logic must be shared verbatim with the host:
 
 ```sh
 node scripts/build-client.mjs   # src/{core,spend,money,i18n,client}.js -> client.js
-node tests/run.mjs              # 159 tests
+node tests/run.mjs              # 163 tests
 ```
 
 `tests/bundle.test.mjs` fails if `client.js` drifts from its sources, so run the build

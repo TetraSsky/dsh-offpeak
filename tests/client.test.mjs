@@ -5,17 +5,29 @@ import { formatHHMM, parseHHMM, wallClock } from '../src/core.js'
 
 const CLIENT = new URL('../client.js', import.meta.url)
 
+// Timers are inert: running effects must not leave a real interval alive behind a test.
+const noTimers = { setInterval: () => 0, clearInterval: () => {}, setTimeout: () => 0, clearTimeout: () => {} }
+
 const loadBundle = () => {
   let definition
   const win = { __ModuleLoader__: { load: (def) => { definition = def } } }
-  new Function('window', 'console', readFileSync(CLIENT, 'utf8'))(win, console)
+  new Function('window', 'console', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', readFileSync(CLIENT, 'utf8'))(
+    win,
+    console,
+    noTimers.setInterval,
+    noTimers.clearInterval,
+    noTimers.setTimeout,
+    noTimers.clearTimeout,
+  )
   return definition
 }
 
 const reactStub = {
   createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
   useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
-  useEffect: () => {},
+  // Run effects on the spot, without their cleanup: the reads they start are what the
+  // tests observe, and the timers they install are the inert ones above.
+  useEffect: (effect) => { effect() },
   useMemo: (factory) => factory(),
   useCallback: (fn) => fn,
   useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
@@ -56,7 +68,7 @@ const renderEntry = (component) => {
   return typeof wrapper.type === 'function' ? wrapper.type(wrapper.props) : wrapper
 }
 
-const harness = (value, localeId = 'en') => {
+const harness = (value, localeId = 'en', connection = undefined) => {
   const registered = []
   const injected = []
   const bound = []
@@ -86,7 +98,9 @@ const harness = (value, localeId = 'en') => {
           ? { bind: (spec) => { bound.push(spec); return scope } }
           : name === 'locale'
             ? locale
-            : undefined,
+            : name === 'connection'
+              ? connection
+              : undefined,
   }
 
   return {
@@ -255,6 +269,54 @@ test('a dismissed notice stays dismissed when the entry remounts on a session sw
 
   const remounted = buttonLabels(renderEntry(overlay().component))
   assert.equal(remounted.includes('Dismiss'), false, 'the notice came back on remount')
+})
+
+const balanceConnection = {
+  rpc: {
+    call: async (_channel, method) =>
+      method === 'balance'
+        ? { ok: true, value: { available: true, currency: 'USD', total: 39.52, granted: null, toppedUp: null } }
+        : { ok: true, value: { now: Date.now(), currency: 'USD', samples: [], spends: { m10: 0, h1: 0, h24: 0 } } },
+  },
+}
+
+const settle = () => new Promise((resolve) => setImmediate(resolve))
+
+test('a rebuilt entry paints the balance on its first render instead of blinking it out', async () => {
+  // The figure is read asynchronously, so a fresh mount used to paint a header with no
+  // balance and add the number a frame later — visible as a flicker when switching chats.
+  const plugin = loadBundle().factory(fakeRequire)
+  const withBalance = { ...idleConfig, showBalance: true }
+
+  const first = harness(withBalance, 'en', balanceConnection)
+  plugin.apply(first.ctx)
+  renderEntry(first.overlay().component)
+  await settle()
+  await settle()
+  assert.match(allText(renderEntry(first.overlay().component)), /\$39\.52/, 'the read must populate the header')
+
+  // A second mount stands for the entry React rebuilds on the next session switch.
+  const second = harness(withBalance, 'en', balanceConnection)
+  plugin.apply(second.ctx)
+  const firstPaint = allText(renderEntry(second.overlay().component))
+  assert.match(firstPaint, /\$39\.52/, 'the first paint after a switch must already carry the figure')
+})
+
+test('the remembered balance is dropped once the balance is switched off', async () => {
+  const plugin = loadBundle().factory(fakeRequire)
+  const first = harness({ ...idleConfig, showBalance: true }, 'en', balanceConnection)
+  plugin.apply(first.ctx)
+  renderEntry(first.overlay().component)
+  await settle()
+  await settle()
+
+  const off = harness({ ...idleConfig, showBalance: false }, 'en', balanceConnection)
+  plugin.apply(off.ctx)
+  renderEntry(off.overlay().component)
+
+  const back = harness({ ...idleConfig, showBalance: true }, 'en', balanceConnection)
+  plugin.apply(back.ctx)
+  assert.equal(/\$\d/.test(allText(renderEntry(back.overlay().component))), false, 'a stale figure must not outlive the setting')
 })
 
 test('a new occurrence is announced even when the previous one was dismissed', () => {
