@@ -81,8 +81,7 @@ test('a three-zone chain round-trips exactly on an ordinary day', () => {
 })
 
 test('zones whose offset is not a multiple of 30 minutes resolve', () => {
-  // Kathmandu +05:45, Chatham +12:45 and Eucla +08:45 are unreachable by a
-  // 30-minute candidate stride, which would make conversions silently no-op.
+  // +05:45, +12:45 and +08:45 are unreachable by a 30-minute stride.
   const quarterHourZones = ['Asia/Kathmandu', 'Pacific/Chatham', 'Australia/Eucla']
   for (const zone of quarterHourZones) {
     assert.notEqual(utcOffsetMinutes(zone, ORDINARY_DAY) % 30, 0, `${zone} should carry a quarter-hour offset`)
@@ -129,9 +128,7 @@ test('a repeated wall time yields both instants, earliest chosen', () => {
 })
 
 test('a round trip can differ by the daylight-saving delta on a transition day', () => {
-  // Documented limitation, not an accident: a conversion carries no date, so the
-  // reverse direction re-anchors to "today" in the target zone and may land on the
-  // other side of a transition. The error is bounded by that transition's delta.
+  // Known limitation: a conversion carries no date and re-anchors to today.
   for (const [dayName, reference] of Object.entries(DST_DAYS)) {
     for (const from of SAMPLE_ZONES) {
       for (const to of SAMPLE_ZONES) {

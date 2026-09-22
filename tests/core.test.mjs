@@ -212,7 +212,7 @@ test('the picker offers no duplicates', () => {
 })
 
 test('every whole-hour offset from -11 to +14 is offered, in winter and in summer', () => {
-  // Two dates so the coverage cannot depend on which hemisphere is in daylight saving.
+  // Two dates, so coverage cannot depend on the hemisphere's DST.
   for (const reference of [Date.UTC(2026, 0, 15), Date.UTC(2026, 6, 15)]) {
     const offered = new Set(SCHEDULE_ZONE_CHOICES.map((zone) => utcOffsetMinutes(zone, reference)))
     for (let hours = -11; hours <= 14; hours += 1) {
@@ -296,8 +296,7 @@ test('nothing in the config can override an active window', () => {
   const monday = mondayOfSeptember2026
   const inside = at(SHANGHAI, monday.y, monday.mo, monday.d, '10:00')
 
-  // The schedule is the only statement of when calls are held; there is no per-window
-  // escape hatch left in the config, so an active window always reads as PAUSED.
+  // No config escape hatch: an active window always reads as PAUSED.
   assert.equal(computeState(inside, config()).state, 'PAUSED')
   assert.equal(computeState(inside, config({ extra: 'ignored' })).state, 'PAUSED')
 })

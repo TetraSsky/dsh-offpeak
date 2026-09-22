@@ -5,7 +5,7 @@ import { formatHHMM, parseHHMM, wallClock } from '../src/core.js'
 
 const CLIENT = new URL('../client.js', import.meta.url)
 
-// Timers are inert: running effects must not leave a real interval alive behind a test.
+// Inert timers: a running effect must not leave a real interval behind.
 const noTimers = { setInterval: () => 0, clearInterval: () => {}, setTimeout: () => 0, clearTimeout: () => {} }
 
 const loadBundle = () => {
@@ -25,8 +25,7 @@ const loadBundle = () => {
 const reactStub = {
   createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
   useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
-  // Run effects on the spot, without their cleanup: the reads they start are what the
-  // tests observe, and the timers they install are the inert ones above.
+  // Effects run on the spot: the reads they start are what the tests observe.
   useEffect: (effect) => { effect() },
   useMemo: (factory) => factory(),
   useCallback: (fn) => fn,
@@ -62,7 +61,7 @@ const buttonLabels = (node, into = []) => {
   return into
 }
 
-// The slot callback returns an element wrapping the function component, so resolve it once.
+// The slot callback wraps the component, so unwrap it once.
 const renderEntry = (component) => {
   const wrapper = component()
   return typeof wrapper.type === 'function' ? wrapper.type(wrapper.props) : wrapper
@@ -114,8 +113,7 @@ const harness = (value, localeId = 'en', connection = undefined) => {
   }
 }
 
-// The shell projects a section label on every render: a thunk is re-read, a plain
-// string keeps whatever the locale was at registration.
+// The shell re-reads the section label every render, so a thunk is required.
 const sectionLabel = (entry) =>
   typeof entry.options.label === 'function' ? entry.options.label() : entry.options.label
 
@@ -157,8 +155,7 @@ test('the client bundle declares the package id and the services it needs', () =
   assert.equal(definition.id, 'dsh-offpeak')
 
   const plugin = definition.factory(fakeRequire)
-  // `locale` must be declared: the service is only readable once its providing fiber
-  // is active, and reading it too early silently leaves every string in English.
+  // `locale` must be declared, or every string silently stays English.
   assert.deepEqual(plugin.inject, ['slots', 'settingsScope', 'locale'])
   assert.equal(typeof plugin.apply, 'function')
 })
@@ -254,8 +251,7 @@ const configWarningOtherWindow = () => {
 }
 
 test('a dismissed notice stays dismissed when the entry remounts on a session switch', () => {
-  // Switching chats tears down and rebuilds the header entry, so component state alone
-  // would bring the notice straight back for an occurrence the user already dismissed.
+  // A session switch rebuilds the entry, so state alone cannot hold the dismissal.
   const plugin = loadBundle().factory(fakeRequire)
   const { ctx, overlay } = harness(configWarningSoon())
   plugin.apply(ctx)
@@ -283,8 +279,7 @@ const balanceConnection = {
 const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 test('a rebuilt entry paints the balance on its first render instead of blinking it out', async () => {
-  // The figure is read asynchronously, so a fresh mount used to paint a header with no
-  // balance and add the number a frame later — visible as a flicker when switching chats.
+  // The async read used to paint without the figure, then add it a frame later.
   const plugin = loadBundle().factory(fakeRequire)
   const withBalance = { ...idleConfig, showBalance: true }
 
@@ -295,7 +290,7 @@ test('a rebuilt entry paints the balance on its first render instead of blinking
   await settle()
   assert.match(allText(renderEntry(first.overlay().component)), /\$39\.52/, 'the read must populate the header')
 
-  // A second mount stands for the entry React rebuilds on the next session switch.
+  // A second mount stands for the next session switch.
   const second = harness(withBalance, 'en', balanceConnection)
   plugin.apply(second.ctx)
   const firstPaint = allText(renderEntry(second.overlay().component))
@@ -330,7 +325,7 @@ test('a new occurrence is announced even when the previous one was dismissed', (
   )
   dismiss.props.onClick()
 
-  // A different window is a different occurrence, so silencing the first must not hide it.
+  // A different window is a different occurrence, so it must still warn.
   const second = harness(configWarningOtherWindow())
   plugin.apply(second.ctx)
 
@@ -339,8 +334,7 @@ test('a new occurrence is announced even when the previous one was dismissed', (
 })
 
 test('the header label itself follows the locale, not just the state word', () => {
-  // The prefix used to be a hardcoded English "offpeak: ", so a Chinese UI showed
-  // Chinese state text behind an English label.
+  // The prefix used to be hardcoded English inside a Chinese UI.
   const chinese = (() => {
     const plugin = loadBundle().factory(fakeRequire)
     const { ctx, overlay } = harness(idleConfig, 'zh')
@@ -371,8 +365,7 @@ test('strings follow the active DSH locale', () => {
 })
 
 test('a live language switch reaches the section label and the settings page', () => {
-  // The section label is projected by the shell on every render, so it must be a
-  // thunk. A string captured at registration showed "Off-peak" in a Chinese UI.
+  // A string captured at registration showed "Off-peak" in a Chinese UI.
   const plugin = loadBundle().factory(fakeRequire)
   const { ctx, overlay, registered, setLocale } = harness(idleConfig, 'en')
   plugin.apply(ctx)
@@ -412,7 +405,6 @@ test('apply degrades instead of throwing when the services are absent', () => {
   assert.doesNotThrow(() => plugin.apply({ get: () => undefined }))
 })
 
-// The settings section renders through its own component, the same way the header does.
 const renderSection = (registered) => {
   const section = registered.find((entry) => entry.options.id === 'offpeak')
   const wrapper = section.component()

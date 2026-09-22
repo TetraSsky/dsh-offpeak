@@ -3,7 +3,7 @@ import { computeState, formatHHMM, wallClock } from './core.js'
 
 const TOOL_NAME = 'offpeak_status'
 
-// Lets the model explain why it is waiting. Read-only: it cannot change the schedule.
+// Read-only: tells the model why calls are held.
 export const createStatusTool = ({ getConfig, getPending = () => 0 }) => {
   const snapshot = () => {
     const config = getConfig()

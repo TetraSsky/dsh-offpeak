@@ -159,7 +159,7 @@ test('an unreadable file reports instead of throwing', () => {
 test('this plugin reads only its own file', () => {
   const dir = workspace()
   const file = join(dir, 'offpeak-history.json')
-  // A predecessor's file in the same directory must be ignored entirely.
+  // A predecessor's file in the same directory must be ignored.
   writeFileSync(join(dir, 'dsh-save-money-balance.json'), JSON.stringify({ points: [{ at: 1000, total: 41.82 }] }))
 
   const history = createHistory({ filePath: file })

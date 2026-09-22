@@ -43,7 +43,6 @@ export const formatHHMM = (minutes) => {
   return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`
 }
 
-// Renders a UTC offset the way zones are usually labelled: `+08:00`, `-05:00`, `+05:45`.
 export const formatOffset = (minutes) => {
   const sign = minutes < 0 ? '-' : '+'
   const absolute = Math.abs(Math.round(minutes))
@@ -56,7 +55,7 @@ export const wallClock = (zone, date) => {
   const y = Number(parts.year)
   const mo = Number(parts.month)
   const d = Number(parts.day)
-  // Some ICU builds render midnight as hour "24"; folding keeps minutes in range.
+  // Some ICU builds report midnight as hour "24"; fold it back.
   const minutes = (Number(parts.hour) % 24) * 60 + Number(parts.minute)
   return { y, mo, d, weekday: new Date(Date.UTC(y, mo - 1, d)).getUTCDay(), minutes }
 }
@@ -71,11 +70,11 @@ const addDays = (y, mo, d, delta) => {
   return { y: shifted.getUTCFullYear(), mo: shifted.getUTCMonth() + 1, d: shifted.getUTCDate() }
 }
 
-// Every instant whose wall-clock reading in `zone` equals the requested one: none is a DST gap, two is a repeat.
+// Every instant with this wall reading: none in a DST gap, two in a repeat.
 export const wallToInstants = (zone, y, mo, d, minutes) => {
   const naive = Date.UTC(y, mo - 1, d) + minutes * 60000
 
-  // Sampled across a few days so both sides of a daylight-saving change are seen.
+  // Sampled across a few days so both sides of a DST change are seen.
   const offsets = new Set()
   for (const day of [-2, -1, 0, 1, 2]) {
     offsets.add(utcOffsetMinutes(zone, naive + day * MINUTES_PER_DAY * 60000))
@@ -90,7 +89,7 @@ export const wallToInstants = (zone, y, mo, d, minutes) => {
   return found
 }
 
-// Resolve a wall-clock reading to one instant: a gap resolves past the gap, a repeat to the earlier instant.
+// One instant for a wall reading: past a DST gap, the earlier one in a repeat.
 export const wallToInstant = (zone, y, mo, d, minutes) => {
   const found = wallToInstants(zone, y, mo, d, minutes)
   if (found.length > 0) return Math.min(...found)
@@ -101,7 +100,7 @@ export const wallToInstant = (zone, y, mo, d, minutes) => {
   return null
 }
 
-// Half-open [pauseAt, resumeAt); a midnight-crossing window belongs to the day it started.
+// Half-open [pauseAt, resumeAt); a crossing window belongs to its start day.
 export const windowMatchesAt = (window, wall, activeDays) => {
   const pauseAt = parseHHMM(window.pauseAt)
   const resumeAt = parseHHMM(window.resumeAt)
@@ -129,7 +128,7 @@ const startOfWindowOnDay = (zone, y, mo, d, pauseAt) => {
   return at === null ? null : { at, day: dayKey(y, mo, d) }
 }
 
-// The next pause at or after now, scanning a few days so sparse weekdays are still found.
+// Next pause at or after now, scanning ahead so sparse weekdays are found.
 export const nextPause = (now, config, limitDays = 8) => {
   const zone = config.scheduleZone
   if (!isValidZone(zone)) return null
@@ -156,7 +155,6 @@ export const nextPause = (now, config, limitDays = 8) => {
   return best
 }
 
-// Offset of `zone` from UTC at one instant, in minutes.
 export const utcOffsetMinutes = (zone, instant) => {
   const date = new Date(Math.floor(instant / 60000) * 60000)
   const wall = wallClock(zone, date)
@@ -164,7 +162,6 @@ export const utcOffsetMinutes = (zone, instant) => {
   return Math.round((asUTC - date.getTime()) / 60000)
 }
 
-// Whether a zone shifts its offset during the year, which decides if it can pin a fixed peak.
 export const observesDST = (zone, year = new Date().getUTCFullYear()) => {
   if (!isValidZone(zone)) return false
   const january = utcOffsetMinutes(zone, Date.UTC(year, 0, 15))
@@ -172,7 +169,7 @@ export const observesDST = (zone, year = new Date().getUTCFullYear()) => {
   return january !== july
 }
 
-// Re-express a wall-clock time in another zone, holding the instant fixed at `reference`.
+// Holds the instant fixed at `reference` while the wall clock moves.
 export const convertHHMM = (fromZone, toZone, value, reference = Date.now()) => {
   const minutes = parseHHMM(value)
   if (minutes === null || !isValidZone(fromZone) || !isValidZone(toZone)) return value
@@ -183,7 +180,7 @@ export const convertHHMM = (fromZone, toZone, value, reference = Date.now()) => 
   return formatHHMM(wallClock(toZone, new Date(instant)).minutes)
 }
 
-// Peak rates are 09:00-12:00 and 14:00-18:00 Beijing on weekdays; the margin avoids boundary slip.
+// Beijing weekday peaks, with a margin to avoid boundary slip.
 export const DEEPSEEK_PEAK_PRESET = {
   zone: 'Asia/Shanghai',
   days: [1, 2, 3, 4, 5],
@@ -193,7 +190,7 @@ export const DEEPSEEK_PEAK_PRESET = {
   ],
 }
 
-// The preset expressed in `targetZone`, so the user's chosen zone is never overridden.
+// Preset converted into `targetZone`, never overriding the user's zone.
 export const presetWindowsFor = (targetZone, reference = Date.now()) =>
   DEEPSEEK_PEAK_PRESET.windows.map((window) => ({
     ...window,
@@ -202,7 +199,7 @@ export const presetWindowsFor = (targetZone, reference = Date.now()) =>
     days: [...DEEPSEEK_PEAK_PRESET.days],
   }))
 
-// Every whole-hour offset from -11 to +14 plus the half- and quarter-hour ones, so any user has a zone.
+// Whole-hour offsets -11..+14 plus the half- and quarter-hour ones.
 export const SCHEDULE_ZONE_CHOICES = [
   'Pacific/Pago_Pago',
   'Pacific/Honolulu',
@@ -266,7 +263,7 @@ export const SCHEDULE_ZONE_CHOICES = [
 
 export const occurrenceId = (window, day) => `${window.id || window.pauseAt}|${day}`
 
-// The schedule decision, shared by host and client so the notice and the gate cannot disagree.
+// Shared by host and client so the notice and the gate cannot disagree.
 export const computeState = (now, config) => {
   if (!config || !config.enabled) return { state: 'NORMAL', reason: 'disabled' }
 
@@ -281,7 +278,7 @@ export const computeState = (now, config) => {
     const id = occurrenceId(window, today)
     const resumeAt = parseHHMM(window.resumeAt)
     const pauseAt = parseHHMM(window.pauseAt)
-    // A midnight-crossing window's evening half resumes tomorrow; its early-morning half resumes today.
+    // A crossing window's evening half resumes tomorrow, its morning half today.
     const resumeDay =
       pauseAt > resumeAt && wall.minutes >= pauseAt
         ? addDays(wall.y, wall.mo, wall.d, 1)
@@ -297,7 +294,7 @@ export const computeState = (now, config) => {
     }
   }
 
-  // Checked after the windows so a window that started yesterday still wins.
+  // Checked after the windows, so one that started yesterday still wins.
   if (Array.isArray(config.activeDays) && config.activeDays.length > 0) {
     if (!config.activeDays.includes(isoWeekday(wall.weekday))) {
       return { state: 'NORMAL', reason: 'weekday-off' }

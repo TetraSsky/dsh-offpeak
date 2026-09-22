@@ -8,17 +8,17 @@ const matchesRoute = (options, filter) => {
   return provider === DEEPSEEK_ROUTE || provider.startsWith('deepseek-')
 }
 
-// Last-resort bound for the degenerate case where a window yields no resume instant.
+// Last-resort bound when a window yields no resume instant.
 const NO_DEADLINE_FALLBACK_MS = 12 * 60 * 60 * 1000
 
-// Waits until the window ends and nothing else: the schedule already says when to resume.
+// Wait only for the window to end; the schedule says when that is.
 export const holdDeadline = (state, now) => {
   const known = state.resumeAt !== null && state.resumeAt !== undefined
   if (!known) return { delay: NO_DEADLINE_FALLBACK_MS, reason: 'no-deadline' }
   return { delay: Math.max(1, state.resumeAt - now), reason: 'window-ended' }
 }
 
-// Holds calls until the window opens; llm/stream is the waterfall every call passes through.
+// Holds calls; llm/stream is the waterfall every call passes through.
 export const createGate = ({ ctx, getConfig, report = () => {} }) => {
   const waiters = new Set()
   let disposed = false

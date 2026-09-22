@@ -9,7 +9,7 @@ test('the symbol follows the currency the API reported', () => {
 })
 
 test('a currency with no known symbol shows its code rather than guessing one', () => {
-  // A wrong symbol misstates the amount, which is worse than an unfamiliar code.
+  // A wrong symbol misstates the amount; a code does not.
   assert.equal(formatMoney(39.78, 'CHF'), '39.78 CHF')
   assert.equal(currencySymbol('CHF'), '')
 })
@@ -44,8 +44,7 @@ test('amounts always carry two decimals', () => {
 })
 
 test('the symbol is chosen by the setting or the API, never by the interface language', () => {
-  // formatMoney takes no locale: a Chinese UI showing a USD balance still shows $, and a
-  // forced currency shows its own symbol in either language.
+  // The symbol follows the currency, never the interface language.
   assert.equal(formatMoney.length, 2, 'formatMoney must take exactly (value, currency)')
   assert.equal(formatMoney(39.78, 'USD'), formatMoney(39.78, 'USD'))
 })
@@ -67,8 +66,7 @@ test('a rate converts between the two currencies DeepSeek bills in', () => {
 })
 
 test('a converted balance states the currency it was converted into', () => {
-  // ¥ for a USD account only means something if the figure was converted, so the pair
-  // moves together: rate 7.2 on 39.56 renders as a yuan amount.
+  // ¥ for a USD account only makes sense if the figure was converted too.
   const rate = conversionRate('USD', 'CNY', 7.2)
   assert.equal(formatMoney(39.56 * rate, 'CNY'), '¥284.83')
   assert.equal(formatMoney(39.56, 'CNY'), '¥39.56', 'rate 0 relabels, it does not convert')

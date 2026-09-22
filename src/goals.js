@@ -7,7 +7,7 @@ const PAUSED = 'paused'
 
 export const PAUSE_FILE = 'offpeak-paused.json'
 
-// Pauses the active goals while a window is open, so the wait is visible and the goal stops churning.
+// Pauses active goals so the wait is visible and the goal stops churning.
 export const createGoalFreezer = ({ ctx, report = () => {}, filePath = dshHomePath(PAUSE_FILE) } = {}) => {
   let record = null
 
@@ -32,7 +32,6 @@ export const createGoalFreezer = ({ ctx, report = () => {}, filePath = dshHomePa
     }
   }
 
-  // Every live agent whose current goal is active.
   const activeGoals = () => {
     const { agents, goals } = services()
     if (!agents || !goals) return null
@@ -42,7 +41,7 @@ export const createGoalFreezer = ({ ctx, report = () => {}, filePath = dshHomePa
       try {
         goal = goals.get(agent)
       } catch {
-        continue // not the registry's live instance for that agent
+        continue // not the registry's live instance
       }
       if (goal && goal.phase === ACTIVE) found.push({ agent, goalId: goal.id, revision: goal.revision })
     }

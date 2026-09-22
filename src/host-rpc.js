@@ -1,4 +1,4 @@
-// Connection requires a leading slash here and rejects "/api" as reserved.
+// Connection needs a leading slash here and rejects "/api" as reserved.
 export const CHANNEL = '/offpeak'
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -36,7 +36,7 @@ const endpointOf = (url) => {
   return ENDPOINT_SEGMENT.test(endpoint) ? endpoint : undefined
 }
 
-// Serves host-only facts to the browser half, borrowing Connection's own request fence.
+// Serves host-only facts to the browser, behind Connection's request fence.
 export const installRpcChannel = ({ ctx, report = () => {}, handlers }) => {
   const webServer = ctx.get('webServer')
   if (!webServer || typeof webServer.register !== 'function') {
@@ -45,7 +45,7 @@ export const installRpcChannel = ({ ctx, report = () => {}, handlers }) => {
   }
 
   const serve = async (req, res) => {
-    // Resolved per request: Connection may activate after this route is registered.
+    // Resolved per request: Connection may activate later.
     const connection = ctx.get('connection')
     if (typeof connection?.requestRejection === 'function') {
       const rejection = connection.requestRejection(req)

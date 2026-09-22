@@ -2,7 +2,7 @@ const BALANCE_URL = 'https://api.deepseek.com/user/balance'
 const API_KEY_REF = 'DEEPSEEK_API_KEY'
 const CACHE_MS = 60000
 
-// Pull the fields the plugin uses out of DeepSeek's balance envelope, tolerating absence.
+// DeepSeek's balance envelope, with every field optional.
 export const parseBalance = (body, now = Date.now()) => {
   const info = Array.isArray(body?.balance_infos) ? body.balance_infos[0] : undefined
   const asNumber = (value) => {
@@ -19,7 +19,7 @@ export const parseBalance = (body, now = Date.now()) => {
   }
 }
 
-// Reads the DeepSeek balance with the stored key, which never leaves the host.
+// Reads the balance with the stored key, which never leaves the host.
 export const createBalanceReader = ({ ctx, report = () => {} }) => {
   let cache = { at: 0, value: null }
 

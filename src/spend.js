@@ -3,7 +3,7 @@ export const WINDOW_BUCKETS = 48
 
 const isDrop = (previous, sample) => previous !== null && sample.total < previous.total
 
-// Spend is the sum of balance drops, so a top-up cannot cancel out real spend.
+// Spend sums balance drops, so a top-up cannot cancel real spend.
 export const spendInWindow = (samples, now, windowMs) => {
   const from = now - windowMs
   let spend = 0
@@ -19,7 +19,7 @@ export const spendInWindow = (samples, now, windowMs) => {
   return spend
 }
 
-// One bar per bucket, oldest first; null marks a bucket with no sample at all.
+// One bar per bucket, oldest first; null means no sample.
 export const spendBars = (samples, now, buckets = WINDOW_BUCKETS, bucketMs = BUCKET_MS) => {
   const bars = new Array(buckets).fill(null)
   let previous = null
@@ -46,5 +46,5 @@ export const formatClock = (instant) => {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-// The `HH:MM-HH:MM` span a spend window covers, for the hover breakdown.
+// The `HH:MM-HH:MM` span a spend window covers.
 export const windowRangeLabel = (now, windowMs) => `${formatClock(now - windowMs)}-${formatClock(now)}`

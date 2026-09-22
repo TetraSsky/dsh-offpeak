@@ -4,18 +4,17 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 
 const CAPACITY = 288
 
-// Bumped when a stored file's meaning changes; v1 could hold another plugin's samples, so it is dropped.
+// v1 could hold another plugin's samples, so its files are dropped.
 const HISTORY_VERSION = 2
 
 export const HISTORY_FILE = 'offpeak-history.json'
 
 const isSample = (value) => Number.isFinite(value?.at) && Number.isFinite(value?.total)
 
-// A capped ring of this plugin's own samples, written temp-and-rename under the harness home.
+// A capped ring of this plugin's samples, written temp-and-rename.
 export const createHistory = ({ report = () => {}, filePath = dshHomePath(HISTORY_FILE) } = {}) => {
   let samples = []
-  // Kept beside the samples so the chart can label amounts even when the balance
-  // endpoint is unavailable. Additive to the stored shape, so no version bump.
+  // Beside the samples so the chart can label amounts without the balance endpoint.
   let currency = null
 
   const persist = () => {

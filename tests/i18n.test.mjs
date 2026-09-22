@@ -9,13 +9,12 @@ test('English is the fallback locale', () => {
 })
 
 test('the dictionaries are exactly the locales the harness ships', () => {
-  // The harness ships LOCALE_IDS = ['zh', 'en'] and nothing else, so a dictionary
-  // outside that set can never be selected, and a missing one silently falls back.
+  // The harness ships only zh and en, so another dictionary is unreachable.
   assert.deepEqual(Object.keys(dictionaries).sort(), ['en', 'zh'])
 })
 
 test('no Chinese string is a leftover copy of the English', () => {
-  // Catches a key added to both dictionaries but only translated in one.
+  // Catches a key copied into zh but never translated.
   const allowed = new Set(['statusLoading'])
   const copied = Object.keys(dictionaries.en).filter(
     (key) => !allowed.has(key) && dictionaries.zh[key] === dictionaries.en[key],

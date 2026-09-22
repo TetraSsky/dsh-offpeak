@@ -7,7 +7,7 @@ import { createGoalFreezer } from '../src/goals.js'
 
 const workspace = () => mkdtempSync(join(tmpdir(), 'offpeak-goals-'))
 
-/** A stand-in for the agents + goals services, with one goal per agent. */
+// A stand-in for the agents + goals services, one goal per agent.
 const makeServices = (initial) => {
   const state = new Map(Object.entries(initial))
   const agents = { list: () => [...state.keys()].map((id) => ({ id })) }
@@ -122,7 +122,7 @@ test('a restart resumes only the goals this plugin paused', () => {
   first.freezer.freeze({ pauseAt: '09:00' })
   assert.equal(existsSync(file), true)
 
-  // A fresh process: g1 is still paused from before, and g2 was paused by the user.
+  // A fresh process: g1 was paused by us, g2 by the user.
   const second = harness(
     {
       a: { id: 'g1', revision: 2, phase: 'paused' },

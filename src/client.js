@@ -46,7 +46,7 @@ const browserZone = () => {
   }
 }
 
-// Projects a schedule wall-clock time into the viewer's zone, for the "your time" annotation.
+// The schedule time in the viewer's zone, for the "your time" note.
 const localTimeFor = (scheduleZone, hhmm, viewerZone) => {
   const minutes = parseHHMM(hhmm)
   if (minutes === null || !isValidZone(scheduleZone) || !isValidZone(viewerZone)) return ''
@@ -73,8 +73,7 @@ const describe = (state, config, t) => {
   return t('statusWaiting')
 }
 
-// Before the settings scope resolves there is no state to describe, only the scope's own
-// status word, which arrives in English from the settings transport.
+// The scope's own status word arrives in English before it resolves.
 const describeAvailability = (status, t) => {
   if (status === 'loading') return t('statusLoading')
   if (status === 'unavailable') return t('statusUnavailable')
@@ -120,7 +119,7 @@ const currentLocaleId = (locale) => {
 }
 
 const styles = {
-  // Inline in the conversation header, never fixed, so it cannot mask other chrome.
+  // Inline, never fixed, so it cannot mask other chrome.
   entry: {
     position: 'relative',
     display: 'flex',
@@ -163,7 +162,7 @@ const styles = {
     border: 'none',
     background: 'transparent',
     color: 'var(--dsw-alias-label-primary)',
-    // Inherit so the figure matches the header text instead of reading as a small link.
+    // Inherit so the figure matches the header text, not a small link.
     font: 'inherit',
     padding: 0,
   },
@@ -213,7 +212,7 @@ const styles = {
   bannerActions: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
   chip: {
     pointerEvents: 'auto',
-    // Flex with a gap: as plain inline content the message and its buttons touch.
+    // Flex with a gap: inline content would glue the buttons to the message.
     display: 'inline-flex',
     alignItems: 'center',
     gap: '10px',
@@ -347,14 +346,10 @@ function DayPicker({ value, onChange, t }) {
   )
 }
 
-// Remembered for the page rather than for the component: the header entry remounts every
-// time the slot switches session, and a notice the user dismissed must not come back with
-// it. A reload drops it on purpose, so a freshly loaded page warns again.
+// Page-scoped: a session switch remounts the entry, a reload does not.
 let dismissedOccurrence = null
 
-// Remembered for the page for the same reason: the balance and the chart arrive from
-// asynchronous reads, so a rebuilt entry must start from the last figures instead of
-// painting a header without them and adding the number a frame later.
+// Page-scoped too: a rebuilt entry starts from the last figures, no flicker.
 const remembered = { balance: null, balanceError: '', chart: null }
 
 function HeaderEntry({ scope, locale, connection }) {
@@ -378,14 +373,13 @@ function HeaderEntry({ scope, locale, connection }) {
 
   const showBalance = ready && config.showBalance === true && connection !== undefined
 
-  // The history carries its own currency, so amounts stay labelled when the balance
-  // endpoint is unavailable. A forced currency relabels; only a rate converts.
+  // A forced currency relabels; only a rate converts.
   const apiCurrency = chartData?.currency ?? balance?.currency ?? null
   const displayCurrency = ready && config.currency !== undefined && config.currency !== 'auto' ? config.currency : apiCurrency
   const rate = conversionRate(apiCurrency, displayCurrency, ready ? config.cnyPerUsd : 0)
   const money = (value) => formatMoney(value * rate, displayCurrency)
 
-  // Written through to the page-scoped copy as well, so the next mount starts from it.
+  // Written through to the page-scoped copy so the next mount starts from it.
   const rememberBalance = (value, message) => {
     remembered.balance = value
     remembered.balanceError = message
@@ -393,7 +387,7 @@ function HeaderEntry({ scope, locale, connection }) {
     setBalanceError(message)
   }
 
-  // Polled whenever the balance is on screen, not only when the chart is open: the hover breakdown needs the same series.
+  // Polled for the hover breakdown too, not only when the chart is open.
   React.useEffect(() => {
     if ((!showBalance && !chartOpen) || connection === undefined) return undefined
     let cancelled = false
@@ -467,7 +461,7 @@ function HeaderEntry({ scope, locale, connection }) {
     'div',
     { style: styles.entry },
     h('span', null, t('statusLine', { status: ready ? describe(state, config, t) : describeAvailability(snapshot.status, t) })),
-    // Trailing, so it separates the label from the balance instead of running them together.
+    // Trailing, so it separates the label from the balance.
     h('span', { style: { ...styles.dot, background: ready ? toneFor(state) : TONE.disabled } }),
     showBalance
       ? balance !== null
@@ -620,8 +614,7 @@ function SettingsPage({ scope, locale }) {
   const browser = React.useMemo(browserZone, [])
 
   const config = snapshot.value
-  // Seeded from the config already in hand, so the page paints on the first render
-  // instead of flashing the placeholder until the effect runs.
+  // Seeded from the config in hand so the first render is not a placeholder.
   const [draft, setDraft] = React.useState(() => (config ? toDraft(config) : null))
   const [dirty, setDirty] = React.useState(false)
   const [message, setMessage] = React.useState(null)
@@ -693,7 +686,7 @@ function SettingsPage({ scope, locale }) {
 
   const removeWindow = (index) => patch({ windows: draft.windows.filter((_, at) => at !== index) })
 
-  // Adds the peak windows in the zone the user chose, without rewriting that choice.
+  // Adds the peak windows; the user's zone choice is not rewritten.
   const applyPreset = () => {
     const target = draft.scheduleZone
     const incoming = presetWindowsFor(target)

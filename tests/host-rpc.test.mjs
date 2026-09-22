@@ -63,7 +63,7 @@ const call = async (route, options) => {
 }
 
 test('the channel satisfies Connection\'s target grammar', () => {
-  // Connection rejects a channel without a leading slash, and "/api" is reserved.
+  // Connection needs a leading slash and rejects "/api" as reserved.
   assert.match(CHANNEL, /^\/[A-Za-z0-9._~-]+$/)
   assert.notEqual(CHANNEL, '/api')
 })

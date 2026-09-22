@@ -54,7 +54,7 @@ const collect = async (iterable) => {
   return chunks
 }
 
-// The wrapper generator body is lazy, so a request is only parked once consumed.
+// The wrapper generator is lazy, so a request parks only once consumed.
 const waitForPark = async (gate) => {
   for (let attempt = 0; attempt < 200 && gate.pending === 0; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1))

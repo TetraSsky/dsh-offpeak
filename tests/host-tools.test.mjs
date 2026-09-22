@@ -64,7 +64,7 @@ test('the rendered report names the schedule zone and the windows', async () => 
 })
 
 test('a paused schedule tells the model when calls resume', async () => {
-  // A window that certainly covers the current instant in the schedule zone.
+  // A window that certainly covers now in the schedule zone.
   const now = new Date()
   const zoneMinutes = Number(
     new Intl.DateTimeFormat('en-US', { timeZone: ZONE, hour12: false, hour: '2-digit', minute: '2-digit' })

@@ -23,7 +23,7 @@ export function apply(ctx) {
       console.log(`[offpeak] ${tag}`, JSON.stringify(value))
     }
 
-    // Read live on every decision, so a missed change notification cannot leave a stale schedule.
+    // Read live per decision: a missed change notice must not stale the schedule.
     const gate = createGate({ ctx, getConfig: () => scope.get(), report })
 
     ctx.effect(() => {
@@ -39,7 +39,7 @@ export function apply(ctx) {
     history.load()
     report('history loaded', { samples: history.size, path: history.path })
 
-    // Sampled on the host, gated on the plugin being enabled rather than on the balance being displayed.
+    // Sampled on the host while enabled, not only while the balance is shown.
     ctx.effect(() => {
       const id = setInterval(() => {
         if (scope.get().enabled !== true) return
@@ -51,7 +51,7 @@ export function apply(ctx) {
       return () => clearInterval(id)
     })
 
-    // Freeze the goal too: the gate stops the spend, the freeze stops the churn behind it.
+    // Freeze goals too: the gate stops the spend, the freeze stops the churn.
     const freezer = createGoalFreezer({ ctx, report })
     freezer.reconcile()
 
@@ -73,7 +73,7 @@ export function apply(ctx) {
       }
     })
 
-    // An inject that never fires leaves a feature silently missing, so each one reports.
+    // An inject that never fires would silently drop a feature.
     let toolRegistered = false
     ctx.inject(['tools'], (tctx) => {
       toolRegistered = true
@@ -82,7 +82,7 @@ export function apply(ctx) {
       )
     })
 
-    // Only webServer is required; connection is read opportunistically for its trust fence.
+    // Only webServer is required; connection only supplies its trust fence.
     let rpcRegistered = false
     ctx.inject(['webServer'], (cctx) => {
       const disposer = installRpcChannel({
@@ -123,7 +123,7 @@ export function apply(ctx) {
       if (!rpcRegistered) console.warn('[offpeak] the web server never appeared; the balance and chart are unavailable')
     }, INJECT_CHECK_MS)
 
-    // Registered bare: the namespace registration already owns the observer.
+    // Bare watch: the namespace registration already owns the observer.
     scope.watch((next) => {
       report('config changed', next)
       gate.revalidate()
