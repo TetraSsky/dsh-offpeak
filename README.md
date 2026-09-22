@@ -123,12 +123,12 @@ The browser half is generated, because a client bundle cannot import a relative 
 and the schedule logic must be shared verbatim with the host:
 
 ```sh
-node scripts/build-client.mjs   # src/{core,spend,i18n,client}.js -> client.js
-node tests/run.mjs              # 143 tests
+node scripts/build-client.mjs   # src/{core,spend,money,i18n,client}.js -> client.js
+node tests/run.mjs              # 154 tests
 ```
 
 `tests/bundle.test.mjs` fails if `client.js` drifts from its sources, so run the build
-after changing any of those four files.
+after changing any of those five files.
 
 When installing through a junction, the plugin is realpath'd out of the profile, so
 `@deepseek-ai/*` stops resolving from it. A `node_modules/@deepseek-ai` junction inside

@@ -15,6 +15,7 @@ import {
   wallToInstant,
 } from './core.js'
 import { fallbackLocale, translate } from './i18n.js'
+import { formatMoney } from './money.js'
 import { BUCKET_MS, WINDOW_BUCKETS, bucketLabel, spendBars, windowRangeLabel } from './spend.js'
 
 const NS = 'offpeak'
@@ -55,13 +56,8 @@ const localTimeFor = (scheduleZone, hhmm, viewerZone) => {
   return formatHHMM(wallClock(viewerZone, new Date(instant)).minutes)
 }
 
-const formatMoney = (value) => `$${Number(value ?? 0).toFixed(2)}`
-
-const formatBalance = (balance) => {
-  if (!balance || balance.total === null || balance.total === undefined) return ''
-  const symbol = { CNY: '¥', USD: '$' }[balance.currency] ?? ''
-  return `${symbol}${Number(balance.total).toFixed(2)}${symbol ? '' : ` ${balance.currency ?? ''}`}`.trim()
-}
+const formatBalance = (balance) =>
+  balance && balance.total !== null && balance.total !== undefined ? formatMoney(balance.total, balance.currency) : ''
 
 const describe = (state, config, t) => {
   if (state.state === 'PAUSED') {
@@ -372,6 +368,10 @@ function HeaderEntry({ scope, locale, connection }) {
 
   const showBalance = ready && config.showBalance === true && connection !== undefined
 
+  // The history carries its own currency, so the chart is labelled correctly even when
+  // the balance endpoint is unavailable. The header uses the balance's own.
+  const currency = chartData?.currency ?? balance?.currency ?? null
+
   // Polled whenever the balance is on screen, not only when the chart is open: the hover breakdown needs the same series.
   React.useEffect(() => {
     if ((!showBalance && !chartOpen) || connection === undefined) return undefined
@@ -473,7 +473,7 @@ function HeaderEntry({ scope, locale, connection }) {
                     null,
                     `${formatBalance(balance)} ${t('balance')}`,
                     balance.granted !== null || balance.toppedUp !== null
-                      ? ` (${t('granted')} ${formatMoney(balance.granted)} · ${t('toppedUp')} ${formatMoney(balance.toppedUp)})`
+                      ? ` (${t('granted')} ${formatMoney(balance.granted, currency)} · ${t('toppedUp')} ${formatMoney(balance.toppedUp, currency)})`
                       : '',
                   ),
                   chartData
@@ -483,14 +483,14 @@ function HeaderEntry({ scope, locale, connection }) {
                         h(
                           'span',
                           null,
-                          `${t('spent10m')} ${formatMoney(chartData.spends.m10)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
+                          `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)} ${windowRangeLabel(chartData.now, 10 * 60 * 1000)}`,
                         ),
                         h(
                           'span',
                           null,
-                          `${t('spent1h')} ${formatMoney(chartData.spends.h1)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
+                          `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)} ${windowRangeLabel(chartData.now, 60 * 60 * 1000)}`,
                         ),
-                        h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24)}`),
+                        h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
                       )
                     : null,
                   h('div', { style: styles.hint }, t('chartNote')),
@@ -550,7 +550,7 @@ function HeaderEntry({ scope, locale, connection }) {
                   h('div', {
                     key: index,
                     title: `${bucketLabel(index, chartData.now, WINDOW_BUCKETS, BUCKET_MS)} · ${
-                      value === null ? t('chartNoData') : formatMoney(value)
+                      value === null ? t('chartNoData') : formatMoney(value, currency)
                     }`,
                     style: {
                       ...styles.bar,
@@ -564,9 +564,9 @@ function HeaderEntry({ scope, locale, connection }) {
           h(
             'div',
             { style: styles.spends },
-            h('span', null, `${t('spent10m')} ${formatMoney(chartData.spends.m10)}`),
-            h('span', null, `${t('spent1h')} ${formatMoney(chartData.spends.h1)}`),
-            h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24)}`),
+            h('span', null, `${t('spent10m')} ${formatMoney(chartData.spends.m10, currency)}`),
+            h('span', null, `${t('spent1h')} ${formatMoney(chartData.spends.h1, currency)}`),
+            h('span', null, `${t('spent24h')} ${formatMoney(chartData.spends.h24, currency)}`),
           ),
           h('div', { style: styles.hint }, t('chartNote')),
         )

@@ -121,6 +121,30 @@ test('a file with no version is discarded too', () => {
   assert.deepEqual(createHistory({ filePath: file }).load(), [])
 })
 
+test('the currency is stored beside the samples and survives a reload', () => {
+  const dir = workspace()
+  const file = join(dir, 'offpeak-history.json')
+  const history = createHistory({ filePath: file })
+  assert.equal(history.currency, null, 'unknown until a sample supplies it')
+
+  history.record(39.78, 1000, 'CNY')
+  assert.equal(history.currency, 'CNY')
+
+  const reloaded = createHistory({ filePath: file })
+  reloaded.load()
+  assert.equal(reloaded.currency, 'CNY', 'the chart can label amounts without the balance endpoint')
+  assert.equal(reloaded.size, 1)
+})
+
+test('a sample without a currency does not erase the one already known', () => {
+  const dir = workspace()
+  const history = createHistory({ filePath: join(dir, 'offpeak-history.json') })
+
+  history.record(39.78, 1000, 'CNY')
+  history.record(39.5, 2000)
+  assert.equal(history.currency, 'CNY')
+})
+
 test('an unreadable file reports instead of throwing', () => {
   const dir = workspace()
   const reports = []

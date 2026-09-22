@@ -14,12 +14,15 @@ const isSample = (value) => Number.isFinite(value?.at) && Number.isFinite(value?
 // A capped ring of this plugin's own samples, written temp-and-rename under the harness home.
 export const createHistory = ({ report = () => {}, filePath = dshHomePath(HISTORY_FILE) } = {}) => {
   let samples = []
+  // Kept beside the samples so the chart can label amounts even when the balance
+  // endpoint is unavailable. Additive to the stored shape, so no version bump.
+  let currency = null
 
   const persist = () => {
     try {
       mkdirSync(dirname(filePath), { recursive: true })
       const temporary = `${filePath}.tmp`
-      writeFileSync(temporary, JSON.stringify({ version: HISTORY_VERSION, samples }, null, 2))
+      writeFileSync(temporary, JSON.stringify({ version: HISTORY_VERSION, currency, samples }, null, 2))
       renameSync(temporary, filePath)
     } catch (error) {
       report('history persist failed', { message: String((error && error.message) || error) })
@@ -34,6 +37,7 @@ export const createHistory = ({ report = () => {}, filePath = dshHomePath(HISTOR
           .filter(isSample)
           .sort((left, right) => left.at - right.at)
           .slice(-CAPACITY)
+        if (typeof parsed.currency === 'string') currency = parsed.currency
       } else if (parsed?.version !== undefined) {
         report('history discarded', { found: parsed.version, expected: HISTORY_VERSION })
       }
@@ -54,8 +58,12 @@ export const createHistory = ({ report = () => {}, filePath = dshHomePath(HISTOR
     get path() {
       return filePath
     },
-    record(total, at = Date.now()) {
+    get currency() {
+      return currency
+    },
+    record(total, at = Date.now(), recordedCurrency) {
       if (!Number.isFinite(total)) return
+      if (typeof recordedCurrency === 'string' && recordedCurrency !== '') currency = recordedCurrency
       const last = samples[samples.length - 1]
       if (last && last.at === at) {
         last.total = total

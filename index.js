@@ -45,7 +45,7 @@ export function apply(ctx) {
         if (scope.get().enabled !== true) return
         void balance
           .read()
-          .then((value) => history.record(value.total))
+          .then((value) => history.record(value.total, Date.now(), value.currency))
           .catch((error) => report('sample failed', { message: String((error && error.message) || error) }))
       }, SAMPLE_MS)
       return () => clearInterval(id)
@@ -95,7 +95,7 @@ export function apply(ctx) {
           }),
           balance: async (_payload, signal) => {
             const value = await balance.read(signal)
-            history.record(value.total)
+            history.record(value.total, Date.now(), value.currency)
             return value
           },
           history: () => {
@@ -103,6 +103,7 @@ export function apply(ctx) {
             const samples = history.all()
             return {
               now,
+              currency: history.currency,
               samples,
               spends: {
                 m10: spendInWindow(samples, now, 10 * MINUTE),

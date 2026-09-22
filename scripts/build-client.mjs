@@ -14,7 +14,7 @@ const stripModuleSyntax = (source, label) => {
   return stripped.trim()
 }
 
-const MODULES = ['src/core.js', 'src/spend.js', 'src/i18n.js', 'src/client.js']
+const MODULES = ['src/core.js', 'src/spend.js', 'src/money.js', 'src/i18n.js', 'src/client.js']
 
 export const buildClientBundle = () => {
   const pkg = JSON.parse(read('package.json'))
