@@ -62,6 +62,7 @@ const harness = (value, localeId = 'en') => {
   const bound = []
   const writes = []
   const snapshot = { status: 'ready', value, revision: 1 }
+  let active = localeId
 
   const scope = {
     getSnapshot: () => snapshot,
@@ -75,7 +76,7 @@ const harness = (value, localeId = 'en') => {
     register: (options, component) => { registered.push({ options, component }); return () => {} },
   }
 
-  const locale = { getSnapshot: () => ({ active: localeId }), subscribe: () => () => {} }
+  const locale = { getSnapshot: () => ({ active }), subscribe: () => () => {} }
 
   const ctx = {
     get: (name) =>
@@ -94,9 +95,15 @@ const harness = (value, localeId = 'en') => {
     injected,
     bound,
     writes,
+    setLocale: (next) => { active = next },
     overlay: () => registered.find((entry) => entry.options.id === 'offpeak-status'),
   }
 }
+
+// The shell projects a section label on every render: a thunk is re-read, a plain
+// string keeps whatever the locale was at registration.
+const sectionLabel = (entry) =>
+  typeof entry.options.label === 'function' ? entry.options.label() : entry.options.label
 
 const idleConfig = {
   enabled: false,
@@ -135,7 +142,9 @@ test('the client bundle declares the package id and the services it needs', () =
   assert.equal(definition.id, 'dsh-offpeak')
 
   const plugin = definition.factory(fakeRequire)
-  assert.deepEqual(plugin.inject, ['slots', 'settingsScope'])
+  // `locale` must be declared: the service is only readable once its providing fiber
+  // is active, and reading it too early silently leaves every string in English.
+  assert.deepEqual(plugin.inject, ['slots', 'settingsScope', 'locale'])
   assert.equal(typeof plugin.apply, 'function')
 })
 
@@ -151,7 +160,7 @@ test('apply contributes the header entry and a settings section', () => {
   assert.equal(overlay().options.name, 'conversation.session.header.utilities')
   const section = registered.find((entry) => entry.options.id === 'offpeak')
   assert.equal(section.options.name, 'settings.section')
-  assert.equal(section.options.label, 'Off-peak')
+  assert.equal(sectionLabel(section), 'Off-peak')
   assert.equal(typeof section.component, 'function')
 })
 
@@ -244,10 +253,26 @@ test('strings follow the active DSH locale', () => {
   const { ctx, overlay, registered } = harness(idleConfig, 'zh')
   plugin.apply(ctx)
 
-  assert.equal(registered.find((entry) => entry.options.id === 'offpeak').options.label, '低谷时段')
+  assert.equal(sectionLabel(registered.find((entry) => entry.options.id === 'offpeak')), '低谷时段')
   const tree = renderEntry(overlay().component)
   assert.match(allText(tree), /低谷时段：已关闭/)
   assert.equal(findElement(tree, (node) => node.type === 'button').children.join(''), '启用')
+})
+
+test('a live language switch reaches the section label and the settings page', () => {
+  // The section label is projected by the shell on every render, so it must be a
+  // thunk. A string captured at registration showed "Off-peak" in a Chinese UI.
+  const plugin = loadBundle().factory(fakeRequire)
+  const { ctx, overlay, registered, setLocale } = harness(idleConfig, 'en')
+  plugin.apply(ctx)
+
+  const section = registered.find((entry) => entry.options.id === 'offpeak')
+  assert.equal(sectionLabel(section), 'Off-peak')
+
+  setLocale('zh')
+
+  assert.equal(sectionLabel(section), '低谷时段', 'the label must be re-read, not frozen at registration')
+  assert.match(allText(renderEntry(overlay().component)), /低谷时段：已关闭/)
 })
 
 test('the toggle writes the explicit target rather than a negation', async () => {

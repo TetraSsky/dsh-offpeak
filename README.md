@@ -124,7 +124,7 @@ and the schedule logic must be shared verbatim with the host:
 
 ```sh
 node scripts/build-client.mjs   # src/{core,spend,i18n,client}.js -> client.js
-node tests/run.mjs              # 138 tests
+node tests/run.mjs              # 143 tests
 ```
 
 `tests/bundle.test.mjs` fails if `client.js` drifts from its sources, so run the build
@@ -135,7 +135,15 @@ When installing through a junction, the plugin is realpath'd out of the profile,
 this directory pointing at the profile's own set fixes that; it is not needed for a
 copied install.
 
-### Two things that cost time to find
+### Three things that cost time to find
+
+**The client `locale` service has to be declared in `inject`.** `ctx.get('locale')` reads as
+a tolerant lookup, but a service is only returned once its providing fiber is active — read
+it a moment too early and you get `undefined`, after which every string in the plugin
+quietly falls back to English while the rest of the harness switches language. Declaring
+`locale` parks activation until the service is live. The settings section label is projected
+by the settings shell rather than by this plugin, so it is registered as a thunk; a plain
+string keeps whatever language it was registered under.
 
 **Connection's generic RPC is unusable from another plugin.** `ctx.connection.rpc.handle()`
 looks like the right way to serve host facts to your own browser half, but it registers

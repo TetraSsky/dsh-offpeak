@@ -1376,7 +1376,7 @@ function SettingsPage({ scope, locale }) {
   )
 }
 
-const inject = ['slots', 'settingsScope']
+const inject = ['slots', 'settingsScope', 'locale']
 
 function apply(ctx) {
   const slots = ctx.get('slots')
@@ -1398,7 +1398,7 @@ function apply(ctx) {
 
   slots.inject('settings.section', () =>
     slots.register(
-      { name: 'settings.section', id: 'offpeak', order: 25, label: translate(currentLocaleId(locale), 'sectionLabel') },
+      { name: 'settings.section', id: 'offpeak', order: 25, label: () => translate(currentLocaleId(locale), 'sectionLabel') },
       () => h(SettingsPage, { scope, locale }),
     ),
   )
