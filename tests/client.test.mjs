@@ -156,7 +156,7 @@ test('the client bundle declares the package id and the services it needs', () =
 
   const plugin = definition.factory(fakeRequire)
   // `locale` must be declared, or every string silently stays English.
-  assert.deepEqual(plugin.inject, ['slots', 'settingsScope', 'locale'])
+  assert.deepEqual(plugin.inject, ['slots', 'locale'])
   assert.equal(typeof plugin.apply, 'function')
 })
 

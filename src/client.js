@@ -906,30 +906,63 @@ function SettingsPage({ scope, locale }) {
   )
 }
 
-export const inject = ['slots', 'settingsScope', 'locale']
+// Hosts differ on which settings service they serve, so resolve whichever is present.
+const bindScope = (ctx) => {
+  const legacy = ctx.get('settingsScope')
+  if (legacy && typeof legacy.bind === 'function') return legacy.bind({ namespace: NS })
+  const forms = ctx.get('configForms')
+  if (forms && typeof forms.get === 'function') return forms.get(NS)
+  return undefined
+}
+
+// Declaring the settings service here would keep the entry pending on hosts that
+// do not serve it.
+export const inject = ['slots', 'locale']
 
 export function apply(ctx) {
   const slots = ctx.get('slots')
-  const binder = ctx.get('settingsScope')
   const locale = ctx.get('locale')
 
-  if (!slots || !binder) {
-    console.error('[offpeak] client apply aborted; slots=', !!slots, 'settingsScope=', !!binder)
+  if (!slots) {
+    console.error('[offpeak] client apply aborted: no slots service')
     return
   }
 
-  const scope = binder.bind({ namespace: NS })
+  const register = (scope) => {
+    slots.inject('conversation.session.header.utilities', () =>
+      slots.register({ name: 'conversation.session.header.utilities', id: 'offpeak-status', order: 50 }, () =>
+        h(HeaderEntry, { scope, locale, connection: ctx.get('connection') }),
+      ),
+    )
 
-  slots.inject('conversation.session.header.utilities', () =>
-    slots.register({ name: 'conversation.session.header.utilities', id: 'offpeak-status', order: 50 }, () =>
-      h(HeaderEntry, { scope, locale, connection: ctx.get('connection') }),
-    ),
-  )
+    slots.inject('settings.section', () =>
+      slots.register(
+        { name: 'settings.section', id: 'offpeak', order: 25, label: () => translate(currentLocaleId(locale), 'sectionLabel') },
+        () => h(SettingsPage, { scope, locale }),
+      ),
+    )
+  }
 
-  slots.inject('settings.section', () =>
-    slots.register(
-      { name: 'settings.section', id: 'offpeak', order: 25, label: () => translate(currentLocaleId(locale), 'sectionLabel') },
-      () => h(SettingsPage, { scope, locale }),
-    ),
-  )
+  // The settings provider is its own client entry and may apply later.
+  const immediate = bindScope(ctx)
+  if (immediate !== undefined) {
+    register(immediate)
+    return
+  }
+
+  let attempts = 0
+  const timer = setInterval(() => {
+    attempts += 1
+    const late = bindScope(ctx)
+    if (late !== undefined) {
+      clearInterval(timer)
+      register(late)
+      return
+    }
+    if (attempts >= 50) {
+      clearInterval(timer)
+      console.error('[offpeak] no settings service found, the status pill and settings panel stay unavailable')
+    }
+  }, 100)
+  if (typeof ctx.effect === 'function') ctx.effect(() => () => clearInterval(timer))
 }

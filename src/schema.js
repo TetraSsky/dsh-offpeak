@@ -24,3 +24,20 @@ export const Config = z.object({
   cnyPerUsd: z.number().min(0).default(0),
   showStatus: z.boolean().default(true),
 })
+
+// `volatile` is not part of every schemastery version, so probe before calling it.
+const supportsVolatile = () => {
+  try {
+    return typeof z.boolean().volatile === 'function'
+  } catch {
+    return false
+  }
+}
+
+export const ConfigVolatile = supportsVolatile()
+  ? z.object(
+      Object.fromEntries(
+        Object.entries(Config.dict ?? {}).map(([key, child]) => [key, child.volatile()]),
+      ),
+    )
+  : undefined

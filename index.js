@@ -5,19 +5,22 @@ import { createGoalFreezer } from './src/goals.js'
 import { createHistory } from './src/history.js'
 import { installRpcChannel } from './src/host-rpc.js'
 import { createStatusTool } from './src/host-tools.js'
-import { Config, NS } from './src/schema.js'
+import { ConfigVolatile } from './src/schema.js'
+import { createSettingsScope } from './src/settings-scope.js'
 import { spendInWindow } from './src/spend.js'
 
 export const name = 'dsh-offpeak'
+
+export { ConfigVolatile as Config }
 
 const SAMPLE_MS = 5 * 60 * 1000
 const FREEZE_TICK_MS = 30 * 1000
 const INJECT_CHECK_MS = 5000
 const MINUTE = 60 * 1000
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   ctx.inject(['settings'], (sctx) => {
-    const scope = sctx.settings.register(NS, Config)
+    const scope = createSettingsScope(ctx, sctx, config)
 
     const report = (tag, value) => {
       console.log(`[offpeak] ${tag}`, JSON.stringify(value))
